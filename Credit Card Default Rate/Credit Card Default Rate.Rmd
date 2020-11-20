@@ -2,7 +2,13 @@
 title: "Credit Card Default"
 author: "Dareck Giuliani, Jacob Summerhays, and Sam Wilson"
 date: "12/2/2020"
-output: html_document
+output:
+  html_document:
+    toc: yes
+    df_print: paged
+  html_notebook:
+    toc: yes
+    number_sections: yes
 ---
 
 ```{r setup, include=FALSE}
@@ -11,6 +17,8 @@ knitr::opts_chunk$set(
 	message = FALSE,
 	warning = FALSE
 )
+
+dev.off()
 
 library(tidyverse)
 
@@ -21,6 +29,8 @@ library(tidyverse)
 This dataset contains information on default payments, demographic factors, credit data, history of payment, and bill statements of credit card clients in Taiwan from April 2005 to September 2005.
 
 ## Variables
+
+### Independent Variables
 
 * ID: ID of each client
 * LIMIT_BAL: Amount of given credit in NT dollars (includes individual and family/supplementary credit
@@ -46,6 +56,9 @@ This dataset contains information on default payments, demographic factors, cred
 * PAY_AMT4: Amount of previous payment in June, 2005 (NT dollar)
 * PAY_AMT5: Amount of previous payment in May, 2005 (NT dollar)
 * PAY_AMT6: Amount of previous payment in April, 2005 (NT dollar)
+
+### Dependent Variables
+
 * default.payment.next.month: Default payment (1=yes, 0=no)
 
 ```{r read in data, echo=TRUE}
@@ -77,11 +90,12 @@ summary(creditDf)
 
 ```{r correct date types, echo=TRUE}
 
+#make sex a binary 1,0 variables 1=female, 0 = male
+creditDf$sex <- if_else(creditDf$sex == 2, true = 1, false = 0)
+
 #make sex a categorical variable
 creditDf$sex <- as.factor(creditDf$sex)
 
-#make sex a binary 1,0 variables 1=female, 0 = male
-creditDf$sex <- if_else(creditDf$sex == 2, true = 1, false = 0)
 
 #make education a categorical variable
 creditDf$education <- as.factor(creditDf$education)
@@ -94,6 +108,43 @@ creditDf$marriage <- as.factor(creditDf$marriage)
 #make default a categorical variable (1 = yes, 0 = no)
 creditDf$default.payment.next.month <- as.factor(creditDf$default.payment.next.month)
 
+#useful subsets
+categorical <- select(creditDf, c(sex, education, marriage, default.payment.next.month))
+continuous <- select(creditDf, -c(sex, education, marriage, id, default.payment.next.month))
+
+summary(creditDf)
 
 ```
 
+# Statistics
+
+## Descriptive Statistics
+
+## Initial Visualizations
+
+```{r IV vs. DV}
+
+creditDf %>% 
+  select(-c(id)) %>%
+  sample_n(10) %>% #samples from the data set to improve speed
+  gather(-default.payment.next.month, key = 'iv', value = 'value') %>%
+  ggplot(aes(x = value,  fill = default.payment.next.month)) +
+  geom_density(position = 'fill', alpha = .5) +
+  facet_wrap(~iv, scales = 'free') + 
+  ylab('Density') +
+  xlab('Independent Variables') +
+  theme_minimal() +
+  theme(
+    legend.position = 'bottom'
+  )
+  
+
+
+```
+
+
+# KNN to segemnt credit card customers
+
+# logistic regression to predict degfault
+
+# random forrest to predict default 
