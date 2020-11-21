@@ -122,7 +122,7 @@ summary(creditDf)
 
 ## Initial Visualizations
 
-```{r IV vs. DV}
+```{r IV vs. DV, echo=TRUE}
 
 creditDf %>% 
   select(-c(id)) %>%
@@ -139,6 +139,12 @@ creditDf %>%
   )
   
 
+```
+
+```{r correlation with IV, echo=TRUE}
+
+creditDf %>%
+  sample_
 
 ```
 
