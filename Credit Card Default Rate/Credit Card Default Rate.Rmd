@@ -18,9 +18,15 @@ knitr::opts_chunk$set(
 	warning = FALSE
 )
 
-library(tidyverse)
+library(tidyverse) #for manopulating and visualizing data
+library(MASS) #has finction stepAIC(), which allows for easy stepwise regression
+library(psych) #dummy code function
+library(fastDummies) #dummy code function
+library(caret) #for computing cross-validation methods
 
-options(scipen=999)
+select <- dplyr::select
+
+options(scipen=999) #effectively eliminates scientific noration
 
 ```
 
@@ -96,11 +102,9 @@ creditDf$sex <- if_else(creditDf$sex == 2, true = 1, false = 0)
 #make sex a categorical variable
 creditDf$sex <- as.factor(creditDf$sex)
 
-
 #make education a categorical variable
 creditDf$education <- as.factor(creditDf$education)
 
-#make education a dummy variable
 
 #make marriage a categorical variable
 creditDf$marriage <- as.factor(creditDf$marriage)
@@ -116,10 +120,13 @@ creditDf$pay_4 <- as.factor(creditDf$pay_4)
 creditDf$pay_5 <- as.factor(creditDf$pay_5)
 creditDf$pay_6 <- as.factor(creditDf$pay_6)
 
-
 #useful subsets
 categorical <- select(creditDf, c(sex, education, marriage, default.payment.next.month, pay_0, pay_2, pay_3, pay_4, pay_5, pay_6))
 continuous <- select(creditDf, -c(sex, education, marriage, default.payment.next.month, pay_0, pay_2, pay_3, pay_4, pay_5, pay_6))
+dummy <- select(creditDf, c(education, marriage, pay_0, pay_2, pay_3, pay_4, pay_5, pay_6))
+
+#creates dummy variables for all categorical variables with more than two levels
+creditDf_Dummy <- dummy_cols(creditDf, select_columns = colnames(dummy))
 
 summary(creditDf)
 
@@ -212,7 +219,6 @@ continuous %>%
 ```
 
 
-
 ```{r correlation with IV, echo=TRUE}
 
 creditDf %>%
@@ -225,6 +231,44 @@ creditDf %>%
 
 # KNN to segemnt credit card customers
 
+
+
 # logistic regression to predict degfault
+
+#Training and Test Data
+
+```{r training test split, echo=TRUE}
+
+#creates a sample of 80% of the data
+sample_size <- floor(.8 * nrow(creditDf))
+
+#
+set.seed(123)
+train_index <- sample(seq_len(nrow(creditDf)), size = sample_size)
+
+#
+train <- creditDf_Dummy[train_index, ]
+test <- creditDf_Dummy[-train_index, ]
+
+```
+
+# Computing Stepwise Logistic Regression
+
+The stepwise logistic regression can be easily computed using the R function stepAIC() available in the MASS package. It performs model selection by AIC. It has an option called direction, which can have the following values: “both”, “forward”, “backward” (see Chapter @ref(stepwise-regression)).
+
+http://www.sthda.com/english/articles/36-classification-methods-essentials/150-stepwise-logistic-regression-essentials-in-r/
+
+```{r stepwise logistic}
+
+#logit_model1 <- glm(default.payment.next.month ~ . , data = train, family = 'binomial') %>%
+  stepAIC(trace = FALSE)
+#After 30 minutes, R continued to process
+```
+```{r stepwise logistic continued}
+
+summary(logit_model1)
+
+```
+
 
 # random forrest to predict default 
