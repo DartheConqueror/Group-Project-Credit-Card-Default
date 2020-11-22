@@ -18,9 +18,9 @@ knitr::opts_chunk$set(
 	warning = FALSE
 )
 
-dev.off()
-
 library(tidyverse)
+
+options(scipen=999)
 
 ```
 
@@ -108,9 +108,18 @@ creditDf$marriage <- as.factor(creditDf$marriage)
 #make default a categorical variable (1 = yes, 0 = no)
 creditDf$default.payment.next.month <- as.factor(creditDf$default.payment.next.month)
 
+#make pay variables into categorical variables
+creditDf$pay_0 <- as.factor(creditDf$pay_0)
+creditDf$pay_2 <- as.factor(creditDf$pay_2)
+creditDf$pay_3 <- as.factor(creditDf$pay_3)
+creditDf$pay_4 <- as.factor(creditDf$pay_4)
+creditDf$pay_5 <- as.factor(creditDf$pay_5)
+creditDf$pay_6 <- as.factor(creditDf$pay_6)
+
+
 #useful subsets
-categorical <- select(creditDf, c(sex, education, marriage, default.payment.next.month))
-continuous <- select(creditDf, -c(sex, education, marriage, id, default.payment.next.month))
+categorical <- select(creditDf, c(sex, education, marriage, default.payment.next.month, pay_0, pay_2, pay_3, pay_4, pay_5, pay_6))
+continuous <- select(creditDf, -c(sex, education, marriage, default.payment.next.month, pay_0, pay_2, pay_3, pay_4, pay_5, pay_6))
 
 summary(creditDf)
 
@@ -139,17 +148,34 @@ creditDf %>%
     #axis.text.x = element_text(angle = 45, hjust = 1),
     legend.position = 'bottom',
     legend.title = element_blank(),
-    axis.text.x = element_blank()
+    #axis.text.x = element_blank()
   ) +
   scale_color_discrete(labels = c('Default', 'No Default' ))
   
 
 ```
-```{r variable histograms}
+```{r IV box plots, echo=TRUE}
 
-#histograms of all data
-creditDf %>%
-  select(-c('id')) %>%
+creditDf %>% 
+  select(-c(id)) %>%
+  sample_n(50) %>% #samples from the data set to improve speed
+  gather(-default.payment.next.month, key = 'iv', value = 'value') %>%
+  ggplot(aes(y = value,  group = default.payment.next.month, x = default.payment.next.month)) +
+  geom_boxplot() +
+  facet_wrap(~iv, scales = 'free') +
+  theme_minimal() +
+  theme(
+    #axis.text.y = element_blank()
+  )
+
+
+```
+
+
+```{r variable histograms, echo=TRUE}
+
+#histograms of categorical data
+categorical %>%
   sample_n(30) %>%
   gather(key = 'var', value = 'value') %>%
   ggplot(aes(x = value)) +
@@ -157,11 +183,28 @@ creditDf %>%
   facet_wrap(~var, scales = 'free') +
   xlab('Variable') +
   ylab('Count') +
-  ggtitle('Histograms of All Variables') +
+  ggtitle('Histograms of All Categorical Variables') +
   theme_minimal() +
   theme(
     #axis.text.x = element_text(angle = 45, hjust = 1),
-    axis.text.x = element_blank()
+    #axis.text.x = element_blank(),
+    axis.title.x = element_blank()
+  )
+
+#histograms of continuous data
+continuous %>%
+  sample_n(30) %>%
+  gather(key = 'var', value = 'value') %>%
+  ggplot(aes(x = value)) +
+  geom_density() +
+  facet_wrap(~var, scales = 'free') +
+  ylab('Density') +
+  ggtitle('Density Plots of All Continuous Variables') +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    #axis.text.x = element_blank(),
+    axis.title.x = element_blank()
   )
   
   
@@ -174,6 +217,7 @@ creditDf %>%
 
 creditDf %>%
   sample_n(30) %>%
+  pairs(lower.panel = NULL)
   
 
 ```
