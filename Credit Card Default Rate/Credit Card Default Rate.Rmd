@@ -18,15 +18,15 @@ knitr::opts_chunk$set(
 	warning = FALSE
 )
 
-library(tidyverse) #for manopulating and visualizing data
-library(MASS) #has finction stepAIC(), which allows for easy stepwise regression
+library(tidyverse) #for manipulating and visualizing data
+library(MASS) #has function stepAIC(), which allows for easy stepwise regression
 library(psych) #dummy code function
 library(fastDummies) #dummy code function
 library(caret) #for computing cross-validation methods
 
 select <- dplyr::select
 
-options(scipen=999) #effectively eliminates scientific noration
+options(scipen=999) #effectively eliminates scientific notation
 
 ```
 
@@ -71,6 +71,7 @@ This dataset contains information on default payments, demographic factors, cred
 
 #read in data
 creditDf <- read.csv('UCI_Credit_Card.csv')
+#https://www.kaggle.com/uciml/default-of-credit-card-clients-dataset
 
 #standardize column names
 colnames(creditDf) <- tolower(make.names(colnames(creditDf)))
@@ -119,6 +120,14 @@ creditDf$pay_3 <- as.factor(creditDf$pay_3)
 creditDf$pay_4 <- as.factor(creditDf$pay_4)
 creditDf$pay_5 <- as.factor(creditDf$pay_5)
 creditDf$pay_6 <- as.factor(creditDf$pay_6)
+
+#pay to balance ratio
+
+#collapse some of the dummy variables
+
+#fix other
+
+#bucket age groups
 
 #useful subsets
 categorical <- select(creditDf, c(sex, education, marriage, default.payment.next.month, pay_0, pay_2, pay_3, pay_4, pay_5, pay_6))
@@ -261,14 +270,20 @@ http://www.sthda.com/english/articles/36-classification-methods-essentials/150-s
 ```{r stepwise logistic}
 
 #logit_model1 <- glm(default.payment.next.month ~ . , data = train, family = 'binomial') %>%
-  stepAIC(trace = FALSE)
+#  stepAIC(trace = FALSE)
 #After 30 minutes, R continued to process
 ```
 ```{r stepwise logistic continued}
 
 summary(logit_model1)
 
+#interaction between gender and marriage. Are make singles more likely to default?
+
 ```
 
+
+#ROC Curve
+
+#Confusion Matrix
 
 # random forrest to predict default 
