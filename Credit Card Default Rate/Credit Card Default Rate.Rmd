@@ -23,7 +23,27 @@ library(MASS) #has finction stepAIC(), which allows for easy stepwise regression
 library(psych) #dummy code function
 library(fastDummies) #dummy code function
 library(caret) #for computing cross-validation methods
-
+library(readxl)
+library(cvTools)
+library(visreg)
+library(lubridate)
+library(psych)#for dummy variables
+library(e1071)
+library(knitr)
+library(dplyr)
+library(ggplot2)
+library(gdata)
+library(car)
+library(openxlsx)
+library(corrplot)
+library(devtools)
+library(leaps)
+library(data.table)
+library(reshape2)
+library(tidyr)
+library(gvlma)
+library(MASS)
+library(janitor) #for adjor totals
 select <- dplyr::select
 
 options(scipen=999) #effectively eliminates scientific noration
