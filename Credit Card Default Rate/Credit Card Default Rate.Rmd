@@ -5,10 +5,6 @@ date: "12/2/2020"
 output:
   html_document:
     toc: yes
-    df_print: paged
-  html_notebook:
-    toc: yes
-    number_sections: yes
 ---
 
 ```{r setup, include=FALSE}
@@ -170,6 +166,8 @@ creditDf %>%
   
 
 ```
+
+
 ```{r IV box plots, echo=TRUE}
 
 creditDf %>% 
