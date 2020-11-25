@@ -63,6 +63,16 @@ This dataset contains information on default payments, demographic factors, cred
 
 * default.payment.next.month: Default payment (1=yes, 0=no)
 
+### Exploratory Questions
+
+1. How does the probability of default payment vary by categories of different demographic variables?
+2. Which variables are the strongest predictors of default payment?
+
+### Goal:
+
+Create a model that best predicts default rate. 
+
+
 ```{r read in data, echo=TRUE}
 
 #read in data
@@ -99,12 +109,24 @@ creditDf$sex <- if_else(creditDf$sex == 2, true = 1, false = 0)
 #make sex a categorical variable
 creditDf$sex <- as.factor(creditDf$sex)
 
-#make education a categorical variable
+#Education contains these three repetitive levels: 4=others, 5=unknown, 6=unknown. This next line is to consolidate the the three levels into 1. 
+creditDf$education[creditDf$education == 5] <- 4
+creditDf$education[creditDf$education == 6] <- 4
+
+#Some entries have education labeled as 0. 0 is not a known level according to the given key. As such, 0 will be grouped with others and unknown. 
+creditDf$education[creditDf$education == 0] <- 4
+
+
+#Make education a categorical variable
 creditDf$education <- as.factor(creditDf$education)
 
+unique(creditDf$education)
 
 #make marriage a categorical variable
 creditDf$marriage <- as.factor(creditDf$marriage)
+
+#Some entries of marriage are labeled as 0. However, the key given to us, does not provide meaning for 0. Thus, values for marriage of 0 will be grouped into the other bin. 
+creditDf$marriage[creditDf$marriage == 0] <- 3
 
 #make default a categorical variable (1 = yes, 0 = no)
 creditDf$default.payment.next.month <- as.factor(creditDf$default.payment.next.month)
@@ -117,13 +139,24 @@ creditDf$pay_4 <- as.factor(creditDf$pay_4)
 creditDf$pay_5 <- as.factor(creditDf$pay_5)
 creditDf$pay_6 <- as.factor(creditDf$pay_6)
 
-#pay to balance ratio
+#Create a variable for average bill and for average payment.
+creditDf <- creditDf %>%
+  mutate(
+    bill_avg = round((creditDf$bill_amt1 + creditDf$bill_amt2 + creditDf$bill_amt3 + creditDf$bill_amt4 + creditDf$bill_amt5 + creditDf$bill_amt6)/6, 2),
+    pay_avg = round((creditDf$pay_amt1 + creditDf$pay_amt2 +creditDf$pay_amt3 + creditDf$pay_amt4 + creditDf$pay_amt5 + creditDf$pay_amt6 ) /6,2),
+    #This creates observations with both + infinity and - infinity. I'm not sure if a regression can handle those values. 
+    bill_pay_ratio = round(bill_avg/pay_avg, 2), 
+    #Credit scores often judge a person on their credit usage. The closer to the limit a person is, the more of a negative impact on credit score. This metric will divide the average bill amount by the limit balance to get a sense of the average credit usage.
+    avg_credit_usage = round(bill_avg/limit_bal, 2)
+  )
+
+#When looking through this data, there are a number of customers who have not paid in the last 6 months. This variable is a count of the number of payments in the last 6 months.
+
+
+
+
 
 #collapse some of the dummy variables
-
-#fix other
-
-#bucket age groups
 
 #useful subsets
 categorical <- select(creditDf, c(sex, education, marriage, default.payment.next.month, pay_0, pay_2, pay_3, pay_4, pay_5, pay_6))
@@ -236,6 +269,30 @@ creditDf %>%
 ```
 
 
+```{r aScatter Plots, echo=TRUE}
+
+#Average Bill Amount vs. Average Pay Amount
+creditDf %>%
+  ggplot(aes(x = bill_avg, y = pay_avg, color = default.payment.next.month)) +
+  geom_point()
+
+#Age vs. Average Bill Amount
+creditDf %>%
+  ggplot(aes(x = age, y = pay_avg, color = default.payment.next.month)) +
+  geom_point()
+
+creditDf %>%
+  ggplot(aes(x = age, y = bill_avg, color = default.payment.next.month)) +
+  geom_point()
+
+creditDf %>%
+  ggplot(aes(x = avg_credit_usage, fill = default.payment.next.month)) +
+  geom_bar()
+
+
+```
+
+
 # KNN to segemnt credit card customers
 
 
@@ -270,10 +327,18 @@ http://www.sthda.com/english/articles/36-classification-methods-essentials/150-s
 #logit_model1 <- glm(default.payment.next.month ~ . , data = train, family = 'binomial') %>%
 #  stepAIC(trace = FALSE)
 #After 30 minutes, R continued to process
-```
-```{r stepwise logistic continued}
+
+logit_model1 <- glm(default.payment.next.month ~ limit_bal + sex +  , data = train, family = 'binomial') %>%
+#  stepAIC(trace = FALSE)
+
 
 summary(logit_model1)
+```
+
+
+```{r stepwise logistic continued}
+
+
 
 #interaction between gender and marriage. Are make singles more likely to default?
 
