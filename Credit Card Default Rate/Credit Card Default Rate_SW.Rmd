@@ -28,6 +28,7 @@ library(fastDummies) #dummy code function
 library(caret) #for computing cross-validation methods
 library(pROC) #to create ROC curves
 library(class) #for the knn() function
+library(gbm) #for GBM function
 
 select <- dplyr::select
 
@@ -174,12 +175,16 @@ creditDf <- creditDf %>%
   mutate(
     bill_avg = round((creditDf$bill_amt1 + creditDf$bill_amt2 + creditDf$bill_amt3 + creditDf$bill_amt4 + creditDf$bill_amt5 + creditDf$bill_amt6)/6, 2),
     pay_avg = round((creditDf$pay_amt1 + creditDf$pay_amt2 +creditDf$pay_amt3 + creditDf$pay_amt4 + creditDf$pay_amt5 + creditDf$pay_amt6 ) /6,2),
-    #This creates observations with both + infinity and - infinity. I'm not sure if a regression can handle those values. 
     bill_pay_ratio = round(bill_avg/pay_avg, 2), 
     #Credit scores often judge a person on their credit usage. The closer to the limit a person is, the more of a negative impact on credit score. This metric will divide the average bill amount by the limit balance to get a sense of the average credit usage.
     avg_credit_usage = round(bill_avg/limit_bal, 2)
   )
 
+#treat INF & NaN values as NA in Pay Average
+for (pay_avg in 1:ncol(creditDf)) set(creditDf, which(is.infinite(creditDf[[pay_avg]])), pay_avg, NA)
+is.nan.data.frame <- function(x)
+  do.call(cbind, lapply(x, is.nan))
+creditDf[is.nan(creditDf)] <- NA
 
 #collapse some of the dummy variables
 
@@ -195,10 +200,10 @@ continuous <- select(creditDf, -c(sex, education, marriage, default.payment.next
 dummy <- select(creditDf, c(education, marriage, pay_0, pay_2, pay_3, pay_4, pay_5, pay_6))
 
 #all demographic variables
-demo <- select(creditDf, c(sex, education, marriage, age, limit_bal, default.payment.next.month))
+demo <- select(creditDf, c(sex, education, marriage, age,default.payment.next.month))
 
 #all 'useful' payment variables
-payment <- select(creditDf, c(bill_avg, pay_avg, bill_pay_ratio, avg_credit_usage, default.payment.next.month))
+payment <- select(creditDf, c(bill_avg, pay_avg, bill_pay_ratio, avg_credit_usage, limit_bal, default.payment.next.month))
 
 #creates dummy variables for all categorical variables with more than two levels
 creditDf_Dummy <- dummy_cols(creditDf, select_columns = colnames(dummy))
@@ -505,6 +510,45 @@ pairs(ccDate_demoinfo)
 ##Off initial review of core data (i.e. not payment data) limit balance, avg credit usage, and payment avg seem to have the largest correlation to whether or not a customer will default
 ```
 
+## Linear Regressions of Default Payment Vs. Demographic & Payment Variables
+```{r simple linear regressions, echo=TRUE}
+#Demographic Data
+model1 <- glm(default.payment.next.month ~ sex, family = binomial, data = creditDf)
+summary(model2)
+
+model2 <- glm(default.payment.next.month ~ education, family = binomial, data = creditDf)
+summary(model2)
+
+model3 <- glm(default.payment.next.month ~ marriage, family = binomial, data = creditDf)
+summary(model3)
+
+model4 <- glm(default.payment.next.month ~ age, family = binomial, data = creditDf)
+summary(model4)
+
+#Payment Data
+model5 <- glm(default.payment.next.month ~ limit_bal, family = binomial, data = creditDf)
+summary(model5)
+
+model6 <- glm(default.payment.next.month ~ bill_avg, family = binomial, data = creditDf)
+summary(model6)
+
+model7 <- glm(default.payment.next.month ~ bill_amt1 + bill_amt2 + bill_amt3 + bill_amt4 + bill_amt5 + bill_amt6, family = binomial, data = creditDf)
+summary(model7)
+
+model8 <- glm(default.payment.next.month ~ pay_avg, family = binomial, data = creditDf)
+summary(model8)
+
+model9 <- glm(default.payment.next.month ~ pay_amt1 + pay_amt2 + pay_amt3 + pay_amt4 + pay_amt5 + pay_amt6, family = binomial, data = creditDf)
+summary(model9)
+
+model10 <- glm(default.payment.next.month ~ pay_0 + pay_2 + pay_3 + pay_4 + pay_5 + pay_6, family = binomial, data = creditDf)
+summary(model10)
+
+model11 <- glm(default.payment.next.month ~ avg_credit_usage, family = binomial, data = creditDf)
+summary(model11)
+
+```
+
 
 
 # k-Nearest Neighbors
@@ -720,3 +764,46 @@ confusionMatrix(test$default.payment.next.month, test$logit.model2.binary)
 ```
 
 # Random Forrest 
+
+# GBM Model
+Gradient boosting is a machine learning technique for regression and classification problems, which produces a prediction model in the form of an ensemble of weak prediction models, typically decision trees. It builds the model in an iterative fashion like other boosting methods do, and it generalizes them by allowing optimization of an arbitrary differentiable loss function. 
+
+https://koalaverse.github.io/machine-learning-in-R/gradient-boosting-machines.html
+
+```{r GBM Prediction, echo=TRUE}
+# Partition into training and test data
+set.seed(456)
+indexGBM <- createDataPartition(creditDf$default.payment.next.month, p = 0.7, list = FALSE)
+train_dataGBM  <- creditDf[indexGBM , ]
+test_dataGBM   <- creditDf[-indexGBM , ]
+
+# Train model with preprocessing & repeated cv
+model_gbm <- caret::train(default.payment.next.month ~ .,
+                          data = train_dataGBM,
+                          method = "gbm",
+                          preProcess = c("scale", "center"),
+                          trControl = trainControl(method = "repeatedcv", 
+                                                  number = 5, 
+                                                  repeats = 3, 
+                                                  verboseIter = FALSE),
+                          verbose = 0, na.action=na.exclude)
+model_gbm
+
+# Test GBM Model against Test Data
+pred.int <- predict(model_gbm, test_dataGBM, interval = "prediction"); pred.int
+gbm_data_frame <- cbind(test_dataGBM$default.payment.next.month, pred.int); gbm_data_frame
+gbm_data_frame = as.data.frame(gbm_data_frame); gbm_data_frame
+gbm_data_frame$V1 <- ordered(gbm_data_frame$V1)
+gbm_data_frame$pred.int <- ordered(gbm_data_frame$pred.int)
+gbm_data_frame
+
+
+
+# 2. Regression line + confidence intervals
+p <- ggplot(gbm_data_frame, aes(V1, pred.int)) +
+  geom_point()
+# 3. Add prediction intervals
+p + geom_line(aes(y = lwr), color = "red", linetype = "dashed")+
+    geom_line(aes(y = upr), color = "red", linetype = "dashed")
+```
+
