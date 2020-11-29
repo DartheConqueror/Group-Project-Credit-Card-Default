@@ -27,6 +27,7 @@ library(psych) #dummy code function
 library(fastDummies) #dummy code function
 library(caret) #for computing cross-validation methods
 library(pROC) #to create ROC curves
+library(ROCR) #an alternate ROC curve package
 library(class) #for the knn() function
 library(randomForest) #for the random forest classifer
 
@@ -582,15 +583,31 @@ varImpPlot(rf_classifer_2)
 
 ```
 
-### Predic with the Random Forest Classifer
+### Predict with the Random Forest Classifer
 
 ```{r predict rf, echo=TRUE}
+
+rf_prediction <- predict(rf_classifer_2, test)
+
+table(observed = test$default.payment.next.month, predicted = rf_prediction)
+
+rf_prediction_prob <-  predict(rf_classifer_2, test, type = 'prob')
+
+true_value <- ifelse(test$default.payment.next.month == rf_prediction, 1, 0)
+
+pred <- prediction(rf_prediction_prob[, 1], true_value)
+
+perf <- performance(pred, 'tpr', 'fpr')
+
+plot(perf)
+
+auc.perf <- performance(pred, measure = 'auc')
+
+print(auc.perf@y.values)
 
 
 
 ```
-
-
 
 
 # Model Comparison (Accuracy)
