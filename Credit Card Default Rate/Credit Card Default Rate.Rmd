@@ -7,7 +7,7 @@ output:
     toc: yes
 ---
 
-# Goal:
+# Goal
 
 Create a model that best predicts default rate. 
 
@@ -28,6 +28,7 @@ library(fastDummies) #dummy code function
 library(caret) #for computing cross-validation methods
 library(pROC) #to create ROC curves
 library(class) #for the knn() function
+library(randomForest) #for the random forest classifer
 
 select <- dplyr::select
 
@@ -174,7 +175,7 @@ creditDf <- creditDf %>%
     bill_avg = round((creditDf$bill_amt1 + creditDf$bill_amt2 + creditDf$bill_amt3 + creditDf$bill_amt4 + creditDf$bill_amt5 + creditDf$bill_amt6)/6, 2),
     pay_avg = round((creditDf$pay_amt1 + creditDf$pay_amt2 +creditDf$pay_amt3 + creditDf$pay_amt4 + creditDf$pay_amt5 + creditDf$pay_amt6 ) /6,2),
     #This creates observations with both + infinity and - infinity. I'm not sure if a regression can handle those values. 
-    bill_pay_ratio = round(bill_avg/pay_avg, 2), 
+    #bill_pay_ratio = round(bill_avg/pay_avg, 2), 
     #Credit scores often judge a person on their credit usage. The closer to the limit a person is, the more of a negative impact on credit score. This metric will divide the average bill amount by the limit balance to get a sense of the average credit usage.
     avg_credit_usage = round(bill_avg/limit_bal, 2)
   )
@@ -313,70 +314,12 @@ creditDf %>%
 ```
 
 
-# k-Nearest Neighbors
+# Classification Models
+## Logistic Regression
 
-https://towardsdatascience.com/k-nearest-neighbors-algorithm-with-examples-in-r-simply-explained-knn-1f2c88da405c
+### Training and Test Data
 
-The data needed to be standardized and training as well as test sets need to be created. 
-
-```{r standardize, echo=TRUE}
-
-#standardize the continuous data 
-creditDf_Scaled <- data.frame(scale(continuous))
-
-#drop bill pay ratio as it is missing all values
-creditDf_Scaled <- select(creditDf_Scaled, -c(bill_pay_ratio))
-
-creditDf_Scaled <- cbind(creditDf_Scaled, creditDf$default.payment.next.month)
-
-creditDf_Scaled <- creditDf_Scaled %>%
-  rename(
-      default.payment.next.month = `creditDf$default.payment.next.month`
-  )
-
-#creates a sample of 80% of the data
-sample_size <- floor(.8 * nrow(creditDf_Scaled))
-
-#
-set.seed(456)
-train_index <- sample(seq_len(nrow(creditDf_Scaled)), size = sample_size)
-
-#create a training a testing data set
-train <- creditDf_Scaled[train_index, ]
-test <- creditDf_Scaled[-train_index, ]
-
-#extract the target column
-credit_target_category <- train$default.payment.next.month
-credit_test_category <- test$default.payment.next.month
-
-
-```
-
-
-
-```{r knn, echo=TRUE}
-
-#run knn
-prediction <- knn(train = train, test = test, cl = train$default.payment.next.month, k = 5)
-
-#create a confusion matrix
-confusion_matrix <- table(prediction, credit_test_category)
-
-confusion_matrix
-
-accuracy <- function(x){sum(diag(x)/(sum(rowSums(x)))) * 100}
-
-accuracy(confusion_matrix)
-
-```
-
-This accuracy is insanely high, there must be target leakage. 
-
-# Logistic Regression to Predict Default Rate
-
-## Training and Test Data
-
-```{r training test split, echo=TRUE}
+```{r train test split logit, echo=TRUE}
 
 #creates a sample of 80% of the data
 sample_size <- floor(.8 * nrow(creditDf))
@@ -391,7 +334,7 @@ test <- creditDf_Dummy[-train_index, ]
 
 ```
 
-## Computing Stepwise Logistic Regression
+### Computing Stepwise Logistic Regression
 
 The stepwise logistic regression can be easily computed using the R function stepAIC() available in the MASS package. It performs model selection by AIC. It has an option called direction, which can have the following values: “both”, “forward”, “backward” (see Chapter @ref(stepwise-regression)).
 
@@ -475,7 +418,7 @@ logit_model2 <- glm(default.payment.next.month ~ sex + education_1 + education_2
 summary(logit_model2)
 
 ```
-## Making Predictions with the Logistic Models
+### Making Predictions with the Logistic Models
 
 ```{r logit prediction, echo=TRUE}
 
@@ -527,4 +470,127 @@ confusionMatrix(test$default.payment.next.month, test$logit.model2.binary)
 
 
 
-# Random Forrest 
+## k-Nearest Neighbors
+
+https://towardsdatascience.com/k-nearest-neighbors-algorithm-with-examples-in-r-simply-explained-knn-1f2c88da405c
+
+The data needed to be standardized and training as well as test sets need to be created. 
+
+```{r standardize, echo=TRUE}
+
+#standardize the continuous data 
+creditDf_Scaled <- data.frame(scale(continuous))
+
+#drop bill pay ratio as it is missing all values
+creditDf_Scaled <- select(creditDf_Scaled, -c(bill_pay_ratio))
+
+creditDf_Scaled <- cbind(creditDf_Scaled, creditDf$default.payment.next.month)
+
+creditDf_Scaled <- creditDf_Scaled %>%
+  rename(
+      default.payment.next.month = `creditDf$default.payment.next.month`
+  )
+
+#creates a sample of 80% of the data
+sample_size <- floor(.8 * nrow(creditDf_Scaled))
+
+#
+set.seed(456)
+train_index <- sample(seq_len(nrow(creditDf_Scaled)), size = sample_size)
+
+#create a training a testing data set
+train <- creditDf_Scaled[train_index, ]
+test <- creditDf_Scaled[-train_index, ]
+
+#extract the target column
+credit_target_category <- train$default.payment.next.month
+credit_test_category <- test$default.payment.next.month
+
+
+```
+
+
+
+```{r knn, echo=TRUE}
+
+#run knn
+prediction <- knn(train = train, test = test, cl = train$default.payment.next.month, k = 5)
+
+#create a confusion matrix
+confusion_matrix <- table(prediction, credit_test_category)
+
+confusion_matrix
+
+accuracy <- function(x){sum(diag(x)/(sum(rowSums(x)))) * 100}
+
+accuracy(confusion_matrix)
+
+```
+
+This accuracy is insanely high, there must be target leakage. 
+
+
+## Random Forest 
+
+https://www.blopig.com/blog/2017/04/a-very-basic-introduction-to-random-forests-using-r/
+
+### Testing and Training Data Set
+
+```{r train test split rf, echo=TRUE}
+
+#creates a sample of 80% of the data
+sample_size <- floor(.8 * nrow(creditDf))
+
+#
+set.seed(678)
+train_index <- sample(seq_len(nrow(creditDf)), size = sample_size)
+
+#
+train <- creditDf[train_index, ]
+test <- creditDf[-train_index, ]
+
+# Drop the ID column from both the train and test set.
+train <- select(train, -c(id))
+test <- select(test, -c(id))
+
+
+```
+
+### Train the Random Forest Model
+
+```{r train rf, echo=TRUE}
+
+# Model 1
+rf_classifer = randomForest(default.payment.next.month ~ ., data = train, ntree = 100, mtry = 2, importance = TRUE)
+
+rf_classifer
+
+varImpPlot(rf_classifer)
+
+# Model 2
+rf_classifer_2 = randomForest(default.payment.next.month ~ pay_0 + pay_2 + pay_3 + pay_4 + pay_4 +
+                                bill_amt6 + bill_amt5 + bill_amt4 + bill_amt3 + bill_amt2 + bill_amt1 + avg_credit_usage +
+                                pay_amt6 + pay_amt5 + pay_amt4 + pay_amt3 + pay_amt2 + pay_amt1 +
+                                limit_bal
+                                , data = train, ntree = 100, mtry = 2, importance = TRUE)
+
+rf_classifer_2
+
+varImpPlot(rf_classifer_2)
+
+#There is hardly any reduction in the OOB estimate in model 2. From 18.62% to 18.52%.
+
+```
+
+### Predic with the Random Forest Classifer
+
+```{r predict rf, echo=TRUE}
+
+
+
+```
+
+
+
+
+# Model Comparison (Accuracy)
