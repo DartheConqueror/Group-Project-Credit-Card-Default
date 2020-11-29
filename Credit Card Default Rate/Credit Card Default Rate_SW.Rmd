@@ -1,0 +1,722 @@
+---
+title: "Credit Card Default"
+author: "Dareck Giuliani, Jacob Summerhays, and Sam Wilson"
+date: "12/2/2020"
+output:
+  html_document:
+    toc: yes
+---
+
+# Goal:
+
+Create a model that best predicts default rate. 
+
+1. How does the probability of default payment vary by categories of different demographic variables?
+2. Which variables are the strongest predictors of default payment?
+
+```{r setup, include=FALSE}
+
+knitr::opts_chunk$set(
+	echo = TRUE,
+	message = FALSE,
+	warning = FALSE
+)
+library(tidyverse) #for manipulating and visualizing data
+library(MASS) #has function stepAIC(), which allows for easy stepwise regression
+library(psych) #dummy code function
+library(fastDummies) #dummy code function
+library(caret) #for computing cross-validation methods
+library(pROC) #to create ROC curves
+library(class) #for the knn() function
+
+select <- dplyr::select
+
+options(scipen=999) #effectively eliminates scientific notation
+
+```
+
+# Getting to Know the Data 
+
+This dataset contains information on default payments, demographic factors, credit data, history of payment, and bill statements of credit card clients in Taiwan from April 2005 to September 2005.
+
+## Variables
+
+### Independent Variables
+
+* ID: ID of each client
+* LIMIT_BAL: Amount of given credit in NT dollars (includes individual and family/supplementary credit
+* SEX: Gender (1=male, 2=female)
+* EDUCATION: (1=graduate school, 2=university, 3=high school, 4=others, 5=unknown, 6=unknown)
+* MARRIAGE: Marital status (1=married, 2=single, 3=others)
+* AGE: Age in years
+* PAY_0: Repayment status in September, 2005 (-1=pay duly, 1=payment delay for one month, 2=payment delay for two months, … 8=payment delay for eight months, 9=payment delay for nine months and above)
+* PAY_2: Repayment status in August, 2005 (scale same as above)
+* PAY_3: Repayment status in July, 2005 (scale same as above)
+* PAY_4: Repayment status in June, 2005 (scale same as above)
+* PAY_5: Repayment status in May, 2005 (scale same as above)
+* PAY_6: Repayment status in April, 2005 (scale same as above)
+* BILL_AMT1: Amount of bill statement in September, 2005 (NT dollar)
+* BILL_AMT2: Amount of bill statement in August, 2005 (NT dollar)
+* BILL_AMT3: Amount of bill statement in July, 2005 (NT dollar)
+* BILL_AMT4: Amount of bill statement in June, 2005 (NT dollar)
+* BILL_AMT5: Amount of bill statement in May, 2005 (NT dollar)
+* BILL_AMT6: Amount of bill statement in April, 2005 (NT dollar)
+* PAY_AMT1: Amount of previous payment in September, 2005 (NT dollar)
+* PAY_AMT2: Amount of previous payment in August, 2005 (NT dollar)
+* PAY_AMT3: Amount of previous payment in July, 2005 (NT dollar)
+* PAY_AMT4: Amount of previous payment in June, 2005 (NT dollar)
+* PAY_AMT5: Amount of previous payment in May, 2005 (NT dollar)
+* PAY_AMT6: Amount of previous payment in April, 2005 (NT dollar)
+
+### Dependent Variables
+
+* default.payment.next.month: Default payment (1=yes, 0=no)
+
+
+```{r read in data, echo=TRUE}
+
+#read in data
+setwd('/Users/sawilson/Desktop/zGrad School/BANA 6610/zHomework/HW_6_Final_Project')
+creditDf <- read.csv('UCI_Credit_Card (1).csv')
+#https://www.kaggle.com/uciml/default-of-credit-card-clients-dataset
+
+#standardize column names
+colnames(creditDf) <- tolower(make.names(colnames(creditDf)))
+
+head(creditDf)
+
+```
+# Cleaning the Data
+
+
+```{r understanding the data, echo=TRUE}
+
+#dimensions
+dim(creditDf)
+
+#missing values
+sum(is.na(creditDf))
+
+#summary
+summary(creditDf)
+
+#current probability of default?
+sum(creditDf$default.payment.next.month)/length(creditDf$default.payment.next.month)
+```
+
+## Correcting the Data Types
+
+1. Alter Sex to be a 0-1 variable and ensure it is categorical. 
+2. Education has one level for other and two levels for unknown. Each of these will be grouped together. 
+3. Education had a few entries of 0, this will be grouped with other and unknown. 
+3. Education is then made into a categorical variable. 
+4. Marriage is made into a categorical variable. 
+5. Marriage has a few entries of 0. These value has no meaning, it will be grouped with other. 
+6. The dependent variable, credit default, it made into a categorical variable. 
+7. Each of the pay variables is made into a categorical variable. 
+8. Each of the pay variables has an entry of -2. This is an erroneous entry and instead the absolute value is used. 
+
+## Feature Engineering
+
+1. An average is taken of all the bill amount variables. 
+2. An average is taken of all the pay amount variables. 
+3. A ratio of bill amount to pay amount is created. 
+4. A variable for limit use is also created by dividing average bill over limit. 
+5. All of the categorical variables are made into dummy variables. 
+
+```{r correct date types, echo=TRUE}
+
+#Make sex a binary 1,0 variables 1=female, 0 = male
+creditDf$sex <- if_else(creditDf$sex == 2, true = 1, false = 0)
+
+#Make sex a categorical variable
+creditDf$sex <- as.factor(creditDf$sex)
+
+#Education contains these three repetitive levels: 4=others, 5=unknown, 6=unknown. This next line is to consolidate the the three levels into 1. 
+creditDf$education[creditDf$education == 5] <- 4
+creditDf$education[creditDf$education == 6] <- 4
+
+#Some entries have education labeled as 0. 0 is not a known level according to the given key. As such, 0 will be grouped with others and unknown. 
+creditDf$education[creditDf$education == 0] <- 4
+
+#Make education a categorical variable
+creditDf$education <- as.factor(creditDf$education)
+
+unique(creditDf$education)
+
+#make marriage a categorical variable
+creditDf$marriage <- as.factor(creditDf$marriage)
+
+#Some entries of marriage are labeled as 0. However, the key given to us, does not provide meaning for 0. Thus, values for marriage of 0 will be grouped into the other bin. 
+creditDf$marriage[creditDf$marriage == 0] <- 3
+
+#make default a categorical variable (1 = yes, 0 = no)
+creditDf$default.payment.next.month <- as.factor(creditDf$default.payment.next.month)
+
+#make pay variables into categorical variables
+creditDf$pay_0 <- as.factor(creditDf$pay_0)
+creditDf$pay_2 <- as.factor(creditDf$pay_2)
+creditDf$pay_3 <- as.factor(creditDf$pay_3)
+creditDf$pay_4 <- as.factor(creditDf$pay_4)
+creditDf$pay_5 <- as.factor(creditDf$pay_5)
+creditDf$pay_6 <- as.factor(creditDf$pay_6)
+
+#The pay variables have values of -2. However, -2 is never provided in the key. I am imputing the absolute value instead. 
+creditDf$pay_0[creditDf$pay_0 == -2] <- 2
+creditDf$pay_2[creditDf$pay_2 == -2] <- 2
+creditDf$pay_3[creditDf$pay_3 == -2] <- 2
+creditDf$pay_4[creditDf$pay_4 == -2] <- 2
+creditDf$pay_5[creditDf$pay_5 == -2] <- 2
+creditDf$pay_6[creditDf$pay_6 == -2] <- 2
+
+#Create a variable for average bill and for average payment.
+creditDf <- creditDf %>%
+  mutate(
+    bill_avg = round((creditDf$bill_amt1 + creditDf$bill_amt2 + creditDf$bill_amt3 + creditDf$bill_amt4 + creditDf$bill_amt5 + creditDf$bill_amt6)/6, 2),
+    pay_avg = round((creditDf$pay_amt1 + creditDf$pay_amt2 +creditDf$pay_amt3 + creditDf$pay_amt4 + creditDf$pay_amt5 + creditDf$pay_amt6 ) /6,2),
+    #This creates observations with both + infinity and - infinity. I'm not sure if a regression can handle those values. 
+    bill_pay_ratio = round(bill_avg/pay_avg, 2), 
+    #Credit scores often judge a person on their credit usage. The closer to the limit a person is, the more of a negative impact on credit score. This metric will divide the average bill amount by the limit balance to get a sense of the average credit usage.
+    avg_credit_usage = round(bill_avg/limit_bal, 2)
+  )
+
+
+#collapse some of the dummy variables
+
+#useful subsets:
+
+#all categorical variables
+categorical <- select(creditDf, c(sex, education, marriage, default.payment.next.month, pay_0, pay_2, pay_3, pay_4, pay_5, pay_6))
+
+#all continuous variables
+continuous <- select(creditDf, -c(sex, education, marriage, default.payment.next.month, pay_0, pay_2, pay_3, pay_4, pay_5, pay_6))
+
+#all dummy variables
+dummy <- select(creditDf, c(education, marriage, pay_0, pay_2, pay_3, pay_4, pay_5, pay_6))
+
+#all demographic variables
+demo <- select(creditDf, c(sex, education, marriage, age, limit_bal, default.payment.next.month))
+
+#all 'useful' payment variables
+payment <- select(creditDf, c(bill_avg, pay_avg, bill_pay_ratio, avg_credit_usage, default.payment.next.month))
+
+#creates dummy variables for all categorical variables with more than two levels
+creditDf_Dummy <- dummy_cols(creditDf, select_columns = colnames(dummy))
+#A marriage_0 variable is continually created, however, marriage with a level has been removed from the data set. 
+
+summary(creditDf)
+
+```
+
+# Statistics
+
+## Descriptive Statistics
+
+## Initial Visualizations
+
+```{r IV vs. DV, echo=TRUE}
+
+#density plots of iV
+creditDf %>% 
+  select(-c(id)) %>%
+  sample_n(50) %>% #samples from the data set to improve speed
+  gather(-default.payment.next.month, key = 'iv', value = 'value') %>%
+  ggplot(aes(x = value,  fill = default.payment.next.month)) +
+  geom_density(position = 'fill', alpha = .5) +
+  facet_wrap(~iv, scales = 'free') + 
+  ylab('Density') +
+  xlab('Independent Variables') +
+  theme_minimal() +
+  theme(
+    #axis.text.x = element_text(angle = 45, hjust = 1),
+    legend.position = 'bottom',
+    legend.title = element_blank(),
+    #axis.text.x = element_blank()
+  ) +
+  scale_color_discrete(labels = c('Default', 'No Default' ))
+  
+
+```
+
+
+```{r IV box plots, echo=TRUE}
+
+creditDf %>% 
+  select(-c(id)) %>%
+  sample_n(50) %>% #samples from the data set to improve speed
+  gather(-default.payment.next.month, key = 'iv', value = 'value') %>%
+  ggplot(aes(y = value,  group = default.payment.next.month, x = default.payment.next.month)) +
+  geom_boxplot() +
+  facet_wrap(~iv, scales = 'free') +
+  theme_minimal() +
+  theme(
+    axis.text.y = element_blank()
+  )
+
+
+```
+
+
+```{r histograms, echo=TRUE}
+
+#histograms of categorical data
+categorical %>%
+  sample_n(30) %>%
+  gather(key = 'var', value = 'value') %>%
+  ggplot(aes(x = value)) +
+  geom_histogram(stat = 'count') +
+  facet_wrap(~var, scales = 'free') +
+  xlab('Variable') +
+  ylab('Count') +
+  ggtitle('Histograms of All Categorical Variables') +
+  theme_minimal() +
+  theme(
+    #axis.text.x = element_text(angle = 45, hjust = 1),
+    #axis.text.x = element_blank(),
+    axis.title.x = element_blank()
+  )
+
+#histograms of continuous data
+continuous %>%
+  sample_n(30) %>%
+  gather(key = 'var', value = 'value') %>%
+  ggplot(aes(x = value)) +
+  geom_density() +
+  facet_wrap(~var, scales = 'free') +
+  ylab('Density') +
+  ggtitle('Density Plots of All Continuous Variables') +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    #axis.text.x = element_blank(),
+    axis.title.x = element_blank()
+  )
+  
+  
+
+```
+
+
+```{r Scatter plots, echo=TRUE}
+
+#Average Bill Amount vs. Average Pay Amount
+creditDf %>%
+  ggplot(aes(x = bill_avg, y = pay_avg, color = default.payment.next.month)) +
+  geom_point()
+
+#Age vs. Average Bill Amount
+creditDf %>%
+  ggplot(aes(x = age, y = pay_avg, color = default.payment.next.month)) +
+  geom_point()
+
+creditDf %>%
+  ggplot(aes(x = age, y = bill_avg, color = default.payment.next.month)) +
+  geom_point()
+
+creditDf %>%
+  ggplot(aes(x = avg_credit_usage, fill = default.payment.next.month)) +
+  geom_bar()
+
+
+```
+
+### Initial Visualizations of Default Payment Vs. Demographic Variables
+```{r Default Payment vs Demo Info, echo=TRUE}
+#Limit Balance
+creditDf_LB <- creditDf %>% group_by(limit_bal, default.payment.next.month) %>% summarise(Counts = n())
+head(creditDf_LB)
+names(creditDf_LB) <- c("LIMIT_BAL","default","Counts") 
+lbdist = ggplot(creditDf_LB, aes(x=factor(LIMIT_BAL), y=Counts, fill=factor(default))) + 
+      geom_bar(stat="identity") + 
+      xlab('Limit Balanace')+
+      ylab('Total')+
+      theme_minimal()+
+      ggtitle("Limit Balance Distribution")
+lbdist = lbdist + guides(fill=guide_legend(title ='Default Payment: 0 = No Default | 1 = Default' )) ; lbdist
+##The customers who have lower limit balance have much more higher default rate.
+
+#Gender
+creditDf_Sex <- creditDf %>% group_by(sex, default.payment.next.month) %>% summarise(Count = n())
+head(creditDf_Sex)
+names(creditDf_Sex) <- c("SEX","default","Count") 
+genderdist = ggplot(creditDf_Sex, aes(x=factor(SEX), y=Count, fill=factor(default))) + 
+      geom_bar(stat="identity") + 
+      xlab('Gender: 0 = Male | 1 = Female')+
+      ylab('Total')+
+      theme_minimal()+
+      ggtitle("Gender Distribution")
+genderdist = genderdist + guides(fill=guide_legend(title ='Default Payment: 0 = No Default | 1 = Default' )) ; genderdist
+##The customers who are defined as 'Female' have a lower default rate.
+
+#Education
+creditDf_Edu <- creditDf %>% group_by(education, default.payment.next.month) %>% summarise(Count = n())
+head(creditDf_Edu)
+names(creditDf_Edu) <- c("EDU","default","Count") 
+edudist = ggplot(creditDf_Edu, aes(x=factor(EDU), y=Count, fill=factor(default))) + 
+      geom_bar(stat="identity") + 
+      xlab('Education: 1 = Grad School, 2 = Under Grad, 3 = High School, 4 = Others')+
+      ylab('Total')+
+      theme_minimal()+
+      ggtitle("Educatiton Distribution")
+edudist = edudist + guides(fill=guide_legend(title ='Default Payment: 0 = No Default | 1 = Default' )) ; edudist
+##The Customers who have competed undergrad have a higher default rate.
+
+#Marriage
+creditDf_Mar <- creditDf %>% group_by(marriage, default.payment.next.month) %>% summarise(Count = n())
+names(creditDf_Mar) <- c("MAR","default","Count")
+creditDf_Mar = creditDf_Mar %>% filter(MAR != 0)
+mardist = ggplot(creditDf_Mar, aes(x=factor(MAR), y=Count, fill=factor(default))) + 
+      geom_bar(stat="identity") + 
+      xlab('Martial Status: 1 = Married, 2 = Single, 3 = Others')+
+      ylab('Total')+
+      theme_minimal()+
+      ggtitle("Marriage Distribution")
+mardist = mardist + guides(fill=guide_legend(title ='Default Payment: 0 = No Default | 1 = Default' )) ; mardist
+##Married and Single Customers have a apprx the same default rate.
+
+#Age
+creditDf_Age <- creditDf %>% group_by(age, default.payment.next.month) %>% summarise(Count = n())
+head(creditDf_Age)
+names(creditDf_Age) <- c("AGE","default","Count") 
+agedist = ggplot(creditDf_Age, aes(x=factor(AGE), y=Count, fill=factor(default))) + 
+      geom_bar(stat="identity") + 
+      xlab('Age')+
+      ylab('Total')+
+      theme_minimal()+
+      ggtitle("Age Distribution")
+agedist = agedist + guides(fill=guide_legend(title ='Default Payment: 0 = No Default | 1 = Default' )) ; agedist
+##Younger customers have a higher default rate.
+  
+```
+
+### Initial Visualizations of Default Payment & Demographic Variables Vs. Payment Variables
+```{r Default Payment vs Payment Info, echo=TRUE}
+#Average Bill Amount vs. Average Pay Amount
+creditDf %>%
+  ggplot(aes(x = bill_avg, y = pay_avg, color = default.payment.next.month)) +
+  geom_point()
+
+#Average Payment Ratio ???
+creditDf %>% 
+  mutate(bill_pay_ratio=round(bill_pay_ratio,0))
+  ggplot(aes(x = bill_pay_ratio, fill = default.payment.next.month)) +
+  geom_bar()
+
+#Average Credit Usage
+creditDf %>%
+  ggplot(aes(x = avg_credit_usage, fill = default.payment.next.month)) +
+  geom_bar()
+
+#Age vs. Payment Info
+creditDf %>%
+  ggplot(aes(x = age, y = pay_avg, color = default.payment.next.month)) +
+  geom_point()
+
+creditDf %>%
+  ggplot(aes(x = age, y = bill_avg, color = default.payment.next.month)) +
+  geom_point()
+
+creditDf %>%
+  ggplot(aes(x = age, y = bill_pay_ratio, color = default.payment.next.month)) +
+  geom_point()
+
+creditDf %>%
+  ggplot(aes(x = age, y = avg_credit_usage, color = default.payment.next.month)) +
+  geom_point()
+
+#Marriage vs. Payment Info
+creditDf %>%
+  ggplot(aes(x = marriage, y = pay_avg, color = default.payment.next.month)) +
+  geom_point()
+
+creditDf %>%
+  ggplot(aes(x = marriage, y = bill_avg, color = default.payment.next.month)) +
+  geom_point()
+
+creditDf %>%
+  ggplot(aes(x = marriage, y = bill_pay_ratio, color = default.payment.next.month)) +
+  geom_point()
+
+creditDf %>%
+  ggplot(aes(x = marriage, y = avg_credit_usage, color = default.payment.next.month)) +
+  geom_point()
+
+#Education vs. Payment Info
+creditDf %>%
+  ggplot(aes(x = education, y = pay_avg, color = default.payment.next.month)) +
+  geom_point()
+
+creditDf %>%
+  ggplot(aes(x = education, y = bill_avg, color = default.payment.next.month)) +
+  geom_point()
+
+creditDf %>%
+  ggplot(aes(x = education, y = bill_pay_ratio, color = default.payment.next.month)) +
+  geom_point()
+
+creditDf %>%
+  ggplot(aes(x = education, y = avg_credit_usage, color = default.payment.next.month)) +
+  geom_point()
+
+#Sex vs. Payment Info
+creditDf %>%
+  ggplot(aes(x = sex, y = pay_avg, color = default.payment.next.month)) +
+  geom_point()
+
+creditDf %>%
+  ggplot(aes(x = sex, y = bill_avg, color = default.payment.next.month)) +
+  geom_point()
+
+creditDf %>%
+  ggplot(aes(x = sex, y = bill_pay_ratio, color = default.payment.next.month)) +
+  geom_point()
+
+creditDf %>%
+  ggplot(aes(x = sex, y = avg_credit_usage, color = default.payment.next.month)) +
+  geom_point()
+
+#Limit Balance vs. Payment Info
+creditDf %>%
+  ggplot(aes(x = limit_bal, y = pay_avg, color = default.payment.next.month)) +
+  geom_point()
+
+creditDf %>%
+  ggplot(aes(x = limit_bal, y = bill_avg, color = default.payment.next.month)) +
+  geom_point()
+
+creditDf %>%
+  ggplot(aes(x = limit_bal, y = bill_pay_ratio, color = default.payment.next.month)) +
+  geom_point()
+
+creditDf %>%
+  ggplot(aes(x = limit_bal, y = avg_credit_usage, color = default.payment.next.month)) +
+  geom_point()
+
+
+
+  
+```
+
+### Initial Correlations between variables are examined
+```{r Correaltions, echo=TRUE, echo=TRUE}
+lares::corr_cross(creditDf, type = 1)
+lares::corr_cross(creditDf, type = 1, ignore = c('pay_0', 'pay_2', 'pay_3', 'pay_4', 'pay_5', 'pay_6', 'bill_amt1', 'bill_amt2', 'bill_amt3', 'bill_amt4', 'bill_amt5','bill_amt6', 'pay_amt1', 'pay_amt2', 'pay_amt3', 'pay_amt4', 'pay_amt5','pay_amt6'))
+pairs(ccDate_demoinfo)
+##Off initial review of core data (i.e. not payment data) limit balance, avg credit usage, and payment avg seem to have the largest correlation to whether or not a customer will default
+```
+
+
+
+# k-Nearest Neighbors
+
+https://towardsdatascience.com/k-nearest-neighbors-algorithm-with-examples-in-r-simply-explained-knn-1f2c88da405c
+
+The data needed to be standardized and training as well as test sets need to be created. 
+
+```{r standardize, echo=TRUE}
+
+#standardize the continuous data 
+creditDf_Scaled <- data.frame(scale(continuous))
+
+#drop bill pay ratio as it is missing all values
+creditDf_Scaled <- select(creditDf_Scaled, -c(bill_pay_ratio))
+
+creditDf_Scaled <- cbind(creditDf_Scaled, creditDf$default.payment.next.month)
+
+creditDf_Scaled <- creditDf_Scaled %>%
+  rename(
+      default.payment.next.month = `creditDf$default.payment.next.month`
+  )
+
+#creates a sample of 80% of the data
+sample_size <- floor(.8 * nrow(creditDf_Scaled))
+
+#
+set.seed(456)
+train_index <- sample(seq_len(nrow(creditDf_Scaled)), size = sample_size)
+
+#create a training a testing data set
+train <- creditDf_Scaled[train_index, ]
+test <- creditDf_Scaled[-train_index, ]
+
+#extract the target column
+credit_target_category <- train$default.payment.next.month
+credit_test_category <- test$default.payment.next.month
+
+
+```
+
+
+
+```{r knn, echo=TRUE}
+
+#run knn
+prediction <- knn(train = train, test = test, cl = train$default.payment.next.month, k = 5)
+
+#create a confusion matrix
+confusion_matrix <- table(prediction, credit_test_category)
+
+confusion_matrix
+
+accuracy <- function(x){sum(diag(x)/(sum(rowSums(x)))) * 100}
+
+accuracy(confusion_matrix)
+
+```
+
+This accuracy is insanely high, there must be target leakage. 
+
+# Logistic Regression to Predict Default Rate
+
+## Training and Test Data
+
+```{r training test split, echo=TRUE}
+
+#creates a sample of 80% of the data
+sample_size <- floor(.8 * nrow(creditDf))
+
+#
+set.seed(123)
+train_index <- sample(seq_len(nrow(creditDf)), size = sample_size)
+
+#
+train <- creditDf_Dummy[train_index, ]
+test <- creditDf_Dummy[-train_index, ]
+
+```
+
+## Computing Stepwise Logistic Regression
+
+The stepwise logistic regression can be easily computed using the R function stepAIC() available in the MASS package. It performs model selection by AIC. It has an option called direction, which can have the following values: “both”, “forward”, “backward” (see Chapter @ref(stepwise-regression)).
+
+http://www.sthda.com/english/articles/36-classification-methods-essentials/150-stepwise-logistic-regression-essentials-in-r/
+
+Because of the size of the data set, it is impractical to train a logistic regression with every variable. Instead logistic models are trained with groups of variables. 
+
+The first block of code uses only the demographic infromation. 
+
+```{r Stepwise Logistic Demographics}
+
+#logit_model1 <- glm(default.payment.next.month ~ . , data = train, family = 'binomial') %>%
+#  stepAIC(trace = FALSE)
+#After 30 minutes, R continued to process
+
+#Create a logistic model using only demographic variables. 
+logit_modelDemographics <- glm(default.payment.next.month ~ sex + education_1 +education_2 + education_3 + education_4
+                               + marriage_1 + marriage_2 + marriage_3 
+                              , data = train, family = 'binomial') #%>%
+  #stepAIC(trace = FALSE)
+
+#Summarize the results. 
+summary(logit_modelDemographics)
+
+#Then, we will predict how well the logistic regression performs. 
+#test$demo.model.probability <- predict(logit_modelDemographics, test, type= "response")
+
+
+```
+This block only uses the bill_amt variables. 
+
+```{r Logistic Bill Amount, echo=TRUE}
+
+logit_modelBillAmt <- glm(default.payment.next.month ~ bill_amt1 +  bill_amt2 + bill_amt3 + bill_amt4 + bill_amt5 + bill_amt6,
+                          data = train, family = 'binomial')
+
+#Only Bill_Amt1 has a significant p-value
+summary(logit_modelBillAmt)
+
+```
+
+This block of code only uses the pay_amt variables.
+
+```{r Logit Pay Amount, echo=TRUE}
+
+logit_modelPayAmt <- glm(default.payment.next.month ~ pay_amt1 + pay_amt2 + pay_amt3 + pay_amt4 + pay_amt5 + pay_amt6,
+                         data = train, family = 'binomial')
+
+summary(logit_modelPayAmt)
+
+```
+The remaining variables related to payment are used. 
+
+```{r Logit Other Pay Variables, echo=TRUE}
+
+logit_modelOtherPay <- glm(default.payment.next.month ~ limit_bal + bill_avg + pay_avg + avg_credit_usage,
+                     data = train, family = 'binomial')
+
+summary(logit_modelOtherPay)
+
+#interaction between gender and marriage. Are make singles more likely to default?
+
+```
+The significant variables from above are used to train two models. 
+
+```{r Stepwise Logistic}
+
+logit_model1 <- glm(default.payment.next.month ~ sex + education_1 + education_2 + education_3 +
+                      bill_amt1 + 
+                      pay_amt1 + pay_amt2 + pay_amt3 + pay_amt4 + pay_amt5 + pay_amt6 +
+                      limit_bal +  avg_credit_usage,
+                    data = train, family = 'binomial')
+
+summary(logit_model1)
+
+logit_model2 <- glm(default.payment.next.month ~ sex + education_1 + education_2 + education_3 +
+                      pay_amt1 + pay_amt2 + pay_amt3 + pay_amt4 + pay_amt5 +
+                      limit_bal +  avg_credit_usage,
+                    data = train, family = 'binomial')
+
+summary(logit_model2)
+
+```
+## Making Predictions with the Logistic Models
+
+```{r logit prediction, echo=TRUE}
+
+#Model 1
+
+#make the prediction
+test$logit.model1.predict <- predict(logit_model1, test, type = 'response')
+
+#create a ROC curve
+plot(
+  roc(default.payment.next.month ~ logit.model1.predict, data = test),
+)
+
+#determines the best cut-off
+coords(roc(default.payment.next.month ~ logit.model1.predict, data = test), 'best')
+
+#uses the best cut-off to classify predictions
+test$logit.model1.binary <- ifelse(test$logit.model1.predict >= 0.2283391, 1, 0)
+
+test$logit.model1.binary  <- as.factor(test$logit.model1.binary )
+
+#creates a confusion matrix
+confusionMatrix(test$logit.model1.binary, test$default.payment.next.month)
+
+#model 2
+
+#make a prediction
+test$logit.model2.predict <- predict(logit_model2, test, type = 'response')
+
+#create a ROC curve
+plot(
+  roc(default.payment.next.month ~ logit.model2.predict, data = test),
+)
+
+# find the best cut-off
+coords(roc(default.payment.next.month ~ logit.model2.predict, data = test), 'best')
+
+# implement the cut-off
+test$logit.model2.binary <- ifelse(test$logit.model1.predict >= 0.2273121, 1, 0)
+
+test$logit.model2.binary  <- as.factor(test$logit.model2.binary)
+
+# create a confusion matrix
+confusionMatrix(test$default.payment.next.month, test$logit.model2.binary)
+
+#These models are practically the same and are not very predictive. 
+
+```
+
+# Random Forrest 
