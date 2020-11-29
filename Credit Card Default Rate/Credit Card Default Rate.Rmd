@@ -15,18 +15,19 @@ Create a model that best predicts default rate.
 2. Which variables are the strongest predictors of default payment?
 
 ```{r setup, include=FALSE}
+
 knitr::opts_chunk$set(
 	echo = TRUE,
 	message = FALSE,
 	warning = FALSE
 )
-
 library(tidyverse) #for manipulating and visualizing data
 library(MASS) #has function stepAIC(), which allows for easy stepwise regression
 library(psych) #dummy code function
 library(fastDummies) #dummy code function
 library(caret) #for computing cross-validation methods
 library(pROC) #to create ROC curves
+library(class) #for the knn() function
 
 select <- dplyr::select
 
@@ -314,7 +315,62 @@ creditDf %>%
 
 # k-Nearest Neighbors
 
+https://towardsdatascience.com/k-nearest-neighbors-algorithm-with-examples-in-r-simply-explained-knn-1f2c88da405c
 
+The data needed to be standardized and training as well as test sets need to be created. 
+
+```{r standardize, echo=TRUE}
+
+#standardize the continuous data 
+creditDf_Scaled <- data.frame(scale(continuous))
+
+#drop bill pay ratio as it is missing all values
+creditDf_Scaled <- select(creditDf_Scaled, -c(bill_pay_ratio))
+
+creditDf_Scaled <- cbind(creditDf_Scaled, creditDf$default.payment.next.month)
+
+creditDf_Scaled <- creditDf_Scaled %>%
+  rename(
+      default.payment.next.month = `creditDf$default.payment.next.month`
+  )
+
+#creates a sample of 80% of the data
+sample_size <- floor(.8 * nrow(creditDf_Scaled))
+
+#
+set.seed(456)
+train_index <- sample(seq_len(nrow(creditDf_Scaled)), size = sample_size)
+
+#create a training a testing data set
+train <- creditDf_Scaled[train_index, ]
+test <- creditDf_Scaled[-train_index, ]
+
+#extract the target column
+credit_target_category <- train$default.payment.next.month
+credit_test_category <- test$default.payment.next.month
+
+
+```
+
+
+
+```{r knn, echo=TRUE}
+
+#run knn
+prediction <- knn(train = train, test = test, cl = train$default.payment.next.month, k = 5)
+
+#create a confusion matrix
+confusion_matrix <- table(prediction, credit_test_category)
+
+confusion_matrix
+
+accuracy <- function(x){sum(diag(x)/(sum(rowSums(x)))) * 100}
+
+accuracy(confusion_matrix)
+
+```
+
+This accuracy is insanely high, there must be target leakage. 
 
 # Logistic Regression to Predict Default Rate
 
