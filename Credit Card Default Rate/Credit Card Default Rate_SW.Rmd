@@ -514,7 +514,7 @@ pairs(ccDate_demoinfo)
 ```{r simple linear regressions, echo=TRUE}
 #Demographic Data
 model1 <- glm(default.payment.next.month ~ sex, family = binomial, data = creditDf)
-summary(model2)
+summary(model1)
 
 model2 <- glm(default.payment.next.month ~ education, family = binomial, data = creditDf)
 summary(model2)
@@ -793,17 +793,7 @@ model_gbm
 pred.int <- predict(model_gbm, test_dataGBM, interval = "prediction"); pred.int
 gbm_data_frame <- cbind(test_dataGBM$default.payment.next.month, pred.int); gbm_data_frame
 gbm_data_frame = as.data.frame(gbm_data_frame); gbm_data_frame
-gbm_data_frame$V1 <- ordered(gbm_data_frame$V1)
-gbm_data_frame$pred.int <- ordered(gbm_data_frame$pred.int)
-gbm_data_frame
 
 
-
-# 2. Regression line + confidence intervals
-p <- ggplot(gbm_data_frame, aes(V1, pred.int)) +
-  geom_point()
-# 3. Add prediction intervals
-p + geom_line(aes(y = lwr), color = "red", linetype = "dashed")+
-    geom_line(aes(y = upr), color = "red", linetype = "dashed")
 ```
 
