@@ -33,7 +33,7 @@ library(caret) #for computing cross-validation methods
 library(pROC) #to create ROC curves
 library(ROCR) #an alternate ROC curve package
 library(class) #for the knn() function
-library(randomForest) #for the random forest classifer
+library(randomForest) #for the random forest classifier
 library(gbm) #for GBM function
 library(gdata) #to rename columns 
 select <- dplyr::select
@@ -134,6 +134,7 @@ sum(creditDf$default.payment.next.month)/length(creditDf$default.payment.next.mo
 5. All of the categorical variables are made into dummy variables. 
 
 ```{r correct date types, echo=TRUE}
+
 creditDf <- creditDf %>%
   mutate(
     
@@ -152,21 +153,13 @@ creditDf <- creditDf %>%
     # The dependent variable is made into a categorical variable (1 = yes, 0 = no). 
     default.payment.next.month = as.factor(creditDf$default.payment.next.month),
     
-    # The pay variables have values of -2. However, -2 is never provided in the key. I am imputing the absolute value instead. 
-    pay_0 = ifelse(creditDf$pay_0 == -2, 2, creditDf$pay_0),
-    pay_2 = ifelse(creditDf$pay_2 == -2, 2, creditDf$pay_2),
-    pay_3 = ifelse(creditDf$pay_3 == -2, 2, creditDf$pay_3),
-    pay_4 = ifelse(creditDf$pay_4 == -2, 2, creditDf$pay_4),
-    pay_5 = ifelse(creditDf$pay_5 == -2, 2, creditDf$pay_5),
-    pay_6 = ifelse(creditDf$pay_6 == -2, 2, creditDf$pay_6),
-    
-    # Each pay variable is made into a categorical variable. 
-    pay_0 = as.factor(creditDf$pay_0),
-    pay_2 = as.factor(creditDf$pay_2),
-    pay_3 = as.factor(creditDf$pay_3),
-    pay_4 = as.factor(creditDf$pay_4),
-    pay_5 = as.factor(creditDf$pay_5),
-    pay_6 = as.factor(creditDf$pay_6),
+    # The pay variables have values of -2. However, -2 is never provided in the key. I am imputing the absolute value instead. Each pay variable is made into a categorical variable. 
+    pay_0 = factor(ifelse(creditDf$pay_0 == -2, 2, creditDf$pay_0)),
+    pay_2 = factor(ifelse(creditDf$pay_2 == -2, 2, creditDf$pay_2)),
+    pay_3 = factor(ifelse(creditDf$pay_3 == -2, 2, creditDf$pay_3)),
+    pay_4 = factor(ifelse(creditDf$pay_4 == -2, 2, creditDf$pay_4)),
+    pay_5 = factor(ifelse(creditDf$pay_5 == -2, 2, creditDf$pay_5)),
+    pay_6 = factor(ifelse(creditDf$pay_6 == -2, 2, creditDf$pay_6)),
     
 
     
@@ -194,7 +187,7 @@ summary(creditDf)
 ```
 
 
-```{r Udeful Subsets, echo=TRUE}
+```{r Useful Subsets, echo=TRUE}
 
 # Useful Subsets
 
@@ -315,6 +308,8 @@ creditDf %>%
   )
 
 ```
+
+
 ```{r Bill Amt vs. Default, echo=TRUE}
 
 creditDf %>%
@@ -565,162 +560,216 @@ agedist = agedist + guides(fill=guide_legend(title ='Default Payment: 0 = No Def
 ### Computing Stepwise Logistic Regression
 
 
-Because of the size of the data set, it is impractical to train a logistic regression with every variable. Instead logistic models are trained with groups of variables. 
+The first block of code uses only the demographic information to determine what, if any, demographic variables are associated with default. 
 
-The first block of code uses only the demographic information. 
-
-```{r Stepwise Logistic Demographics}
-
-#logit_model1 <- glm(default.payment.next.month ~ . , data = train, family = 'binomial') %>%
-#  stepAIC(trace = FALSE)
-#After 30 minutes, R continued to process
+```{r demographic, echo=TRUE}
 
 #Create a logistic model using only demographic variables. 
-logit_modelDemographics <- glm(default.payment.next.month ~ sex + education_1 +education_2 + education_3 + education_4
-                               + marriage_1 + marriage_2 + marriage_3 
-                              , data = train, family = 'binomial') #%>%
-  #stepAIC(trace = FALSE)
+logit_modelDemographics <- glm(default.payment.next.month ~ sex + education + age + marriage
+                              ,data = train, family = 'binomial')
 
-#Summarize the results. 
 summary(logit_modelDemographics)
 
-#Then, we will predict how well the logistic regression performs. 
-#test$demo.model.probability <- predict(logit_modelDemographics, test, type= "response")
-
-
 ```
-This block only uses the bill_amt variables. 
+The next block evaluates only the variables associated with payments. 
 
-```{r Logistic Bill Amount, echo=TRUE}
+```{r payment, echo=TRUE}
 
-logit_modelBillAmt <- glm(default.payment.next.month ~ bill_amt1 +  bill_amt2 + bill_amt3 + bill_amt4 + bill_amt5 + bill_amt6,
-                          data = train, family = 'binomial')
+logit_modelPayment <- glm(default.payment.next.month ~ bill_amt1 +  bill_amt2 + bill_amt3 + bill_amt4 + bill_amt5 + bill_amt6
+                          + pay_amt1 + pay_amt2 + pay_amt3 + pay_amt4 + pay_amt5 + pay_amt6
+                          + limit_bal + bill_avg + pay_avg + avg_credit_usage
+                          + pay_0 + pay_2 + pay_3 + pay_4 + pay_5 + pay_6
+                          ,data = train, family = 'binomial')
 
 #Only Bill_Amt1 has a significant p-value
-summary(logit_modelBillAmt)
+summary(logit_modelPayment)
 
 ```
 
-This block of code only uses the pay_amt variables.
-
-```{r Logit Pay Amount, echo=TRUE}
-
-logit_modelPayAmt <- glm(default.payment.next.month ~ pay_amt1 + pay_amt2 + pay_amt3 + pay_amt4 + pay_amt5 + pay_amt6,
-                         data = train, family = 'binomial')
-
-summary(logit_modelPayAmt)
-
-```
-The remaining variables related to payment are used. 
-
-```{r Logit Other Pay Variables, echo=TRUE}
-
-logit_modelOtherPay <- glm(default.payment.next.month ~ limit_bal + bill_avg + pay_avg + avg_credit_usage,
-                     data = train, family = 'binomial')
-
-summary(logit_modelOtherPay)
-
-#interaction between gender and marriage. Are make singles more likely to default?
-
-```
-The significant variables from above are used to train two models. 
+The stepAIC() function is used to combine demographic and payment variables. 
 
 ```{r Stepwise Logistic}
 
-# Model 1
-logit_model1 <- glm(default.payment.next.month ~ sex + education +
-                      bill_amt1 + 
-                      pay_amt1 + pay_amt2 + pay_amt3 + pay_amt4 + pay_amt5 + pay_amt6 +
-                      limit_bal +  avg_credit_usage,
-                    data = train, family = 'binomial')
+# This will create an output that indicates the most significant predictors using the non-scaled data. 
+logit_model1 <- glm(default.payment.next.month ~ . , data = train, family = 'binomial') %>%
+  stepAIC(trace = FALSE)
 
 summary(logit_model1)
 
-
-# Model 2
-logit_model2 <- glm(default.payment.next.month ~ sex + education +
-                      pay_amt1 + pay_amt2 + pay_amt3 + pay_amt4 + pay_amt5 +
-                      limit_bal +  avg_credit_usage,
-                    data = train, family = 'binomial')
+# This produces the same output with scaled data. 
+logit_model2 <- glm(default.payment.next.month ~ . , data = train_scaled, family = 'binomial') %>%
+  stepAIC(trace = FALSE)
 
 summary(logit_model2)
 
-# Model 3A - This model will use the scaled data.
-logit_model3 <- glm(default.payment.next.month ~ limit_bal + age + 
-                      bill_amt1 + bill_amt2 + bill_amt3 + bill_amt4 + bill_amt5 + bill_amt6 +
-                      pay_amt1 + pay_amt2 + pay_amt3 + pay_amt4 + pay_amt5 + pay_amt6 +
-                      bill_avg + pay_avg + avg_credit_usage,
-                    data = train_scaled, family = 'binomial')
-
-summary(logit_model3)
-
-# Model 3B
-
-logit_model3B <- glm(default.payment.next.month ~ scaled.limit_bal + scaled.age + 
-                    scaled.pay_amt1 + scaled.avg_credit_usage,
-                    data = train_scaled, family = 'binomial')
-
-summary(logit_model3B)
+# Both of these code chunks take a few minutes to complete running. 
 
 ```
+
+The StepAIC() functions helps to determine which variables to retain in the final model. The following code chunk uses different combinations of the recommended variables in an effort to develop a model with a lower AIC score. 
+
+```{r logit model1, echo=TRUE}
+
+logit_model1B <- glm(default.payment.next.month ~ limit_bal + sex + education + marriage 
+                     + pay_0 + bill_amt1 + bill_amt4 + bill_amt6
+                     + pay_amt1 + pay_amt2 + pay_amt3 + pay_amt4 + pay_amt5 + pay_amt6
+                     + bill_avg + avg_credit_usage, data = train, family = 'binomial')
+
+summary(logit_model1B)
+
+logit_model2B <- glm(default.payment.next.month ~ scaled.limit_bal + sex + education + marriage 
+                     + pay_0 + scaled.bill_amt1 + scaled.bill_amt4 + scaled.bill_amt6
+                     + scaled.pay_amt1 + scaled.pay_amt2 + scaled.pay_amt3 + scaled.pay_amt4 + scaled.pay_amt5 
+                     + scaled.bill_avg + scaled.avg_credit_usage, data = train_scaled, family = 'binomial')
+
+summary(logit_model2B)
+
+logit_model2C <- glm(default.payment.next.month ~ scaled.limit_bal + sex + education + marriage 
+                     + pay_0 + scaled.bill_amt1 
+                     + scaled.pay_amt1 + scaled.pay_amt2 + scaled.pay_amt3 + scaled.pay_amt4 + scaled.pay_amt5 
+                     + scaled.bill_avg + scaled.avg_credit_usage, data = train_scaled, family = 'binomial')
+
+summary(logit_model2C)
+
+logit_model2D <- glm(default.payment.next.month ~ scaled.limit_bal + sex 
+                     + pay_0 + scaled.bill_amt1 
+                     + scaled.pay_amt1 + scaled.pay_amt2 + scaled.pay_amt3 + scaled.pay_amt4 + scaled.pay_amt5 
+                     + scaled.bill_avg + scaled.avg_credit_usage, data = train_scaled, family = 'binomial')
+
+summary(logit_model2D)
+
+logit_model2E <- glm(default.payment.next.month ~ scaled.limit_bal + sex * scaled.age
+                     + pay_0 + scaled.bill_amt1 + scaled.bill_avg + 
+                     + scaled.pay_amt1 + scaled.pay_amt2 + scaled.pay_amt3 + scaled.pay_amt4 + scaled.pay_amt5 
+                     + scaled.avg_credit_usage, data = train_scaled, family = 'binomial')
+
+summary(logit_model2E)
+
+```
+
+The key metric from each logistic model are compared. 
+
+```{r comparing logit models, echo=TRUE}
+
+#create a graph comparing logit models by AIC
+
+logit.comparison <- data.frame(
+  
+  'Model' = c('Logistic Model 1', 'Logistic Model 1B', 'Logistic Model 2', 'Logistic Model 2B', 'Logistic Model 2C', 'Logistic Model 2D',
+              'Logistic Model 2E', 'Logistic Model Demographics', 'Logistic Model Payments'),
+  
+  'AIC' = c(logit_model1$aic, logit_model1B$aic, logit_model2$aic, logit_model2B$aic, logit_model2C$aic, logit_model2D$aic, logit_model2E$aic,
+            logit_modelDemographics$aic, logit_modelPayment$aic),
+  
+  'Rank' = c(logit_model1$rank, logit_model1B$rank, logit_model2$rank, logit_model2B$rank, logit_model2C$rank, logit_model2D$rank,
+             logit_model2E$rank,logit_modelDemographics$rank, logit_modelPayment$rank),
+  
+  'Deviance' = c(logit_model1$deviance, logit_model1B$deviance, logit_model2$deviance, logit_model2B$deviance, logit_model2C$deviance,
+                 logit_model2D$deviance,logit_model2E$deviance,logit_modelDemographics$deviance, logit_modelPayment$deviance),
+  
+  'Null Deviance' = c(logit_model1$null.deviance, logit_model1B$null.deviance, logit_model2$null.deviance, logit_model2B$null.deviance,
+                      logit_model2C$null.deviance,logit_model2D$null.deviance,logit_model2E$null.deviance,logit_modelDemographics$null.deviance,
+                      logit_modelPayment$null.deviance)
+  
+  
+)
+
+# Displays the table of metrics for the Logistic Model.
+logit.comparison
+
+# Sort the Models by AIC score. 
+logit.comparison %>%
+  select(Model, AIC) %>%
+  arrange(AIC)
+
+# Graphs the AIC score and model. 
+logit.comparison %>%
+  ggplot(aes(x = Model, y = AIC)) +
+  geom_col() +
+  ggtitle('AIC for Each Logistic Model') +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1)
+  )
+
+
+```
+
+
 ### Making Predictions with the Logistic Models
 
 ```{r logit prediction, echo=TRUE}
 
-#Model 1
+# Logistic Model 2
+# Logistic Model Payments
+# Logistic Model Demographics
 
-#make the prediction
-test$logit.model1.predict <- predict(logit_model1, test, type = 'response')
 
-#create a ROC curve
+
+test.results <- test %>%
+  mutate(
+    
+    'logistic.model2.probability' = predict(logit_model2, test_scaled, type = 'response'),
+    'logistic.modelpayments.probability' = predict(logit_modelPayment, test, type = 'response'),
+    'logistic.modeldemographics.probability' = predict(logit_modelDemographics, test, type = 'response')
+    
+  )
+
+# This plots the ROC curve for Model 2
 plot(
-  roc(default.payment.next.month ~ logit.model1.predict, data = test),
-)
-
-#determines the best cut-off
-coords(roc(default.payment.next.month ~ logit.model1.predict, data = test), 'best')
-
-#uses the best cut-off to classify predictions
-test$logit.model1.binary <- ifelse(test$logit.model1.predict >= 0.2283391, 1, 0)
-
-test$logit.model1.binary  <- as.factor(test$logit.model1.binary )
-
-#creates a confusion matrix
-confusionMatrix(test$logit.model1.binary, test$default.payment.next.month)
-
-#model 2
-
-#make a prediction
-test$logit.model2.predict <- predict(logit_model2, test, type = 'response')
-
-#create a ROC curve
+  performance(
+  prediction(test.results$logistic.model2.probability, test.results$default.payment.next.month),
+  'tpr',
+  'fpr'
+  ), colorsize = TRUE
+  )
+# This adds the line for the payments model. 
 plot(
-  roc(default.payment.next.month ~ logit.model2.predict, data = test),
-)
+  performance(
+  prediction(test.results$logistic.modelpayments.probability, test.results$default.payment.next.month),
+  'tpr',
+  'fpr'
+  ), colorsize = TRUE, add = TRUE
+  )
+# This adds a line for the demographics model.The demographics model is as good as guessing. 
+plot(
+  performance(
+  prediction(test.results$logistic.modeldemographics.probability, test.results$default.payment.next.month),
+  'tpr',
+  'fpr'
+  ), colorsize = TRUE, add = TRUE
+  )
 
-# find the best cut-off
-coords(roc(default.payment.next.month ~ logit.model2.predict, data = test), 'best')
+# This line will determine the best cut-off values. 
+coords(roc(default.payment.next.month ~ logistic.modeldemographics.probability, data = test.results), 'best')
+coords(roc(default.payment.next.month ~ logistic.modelpayments.probability, data = test.results), 'best')
+coords(roc(default.payment.next.month ~ logistic.modeldemographics.probability, data = test.results), 'best')
 
-# implement the cut-off
-test$logit.model2.binary <- ifelse(test$logit.model1.predict >= 0.2273121, 1, 0)
+# Create predictions using the threshold value.
+test.results <- test.results %>%
+  mutate(
+    logistic.model2.prediction = factor(ifelse(logistic.model2.probability > 
+                                          coords(roc(default.payment.next.month ~ logistic.modeldemographics.probability, data = test.results), 'best')[, 1], 1, 0
+                                        )),
+    
+    logistic.modelpayments.prediction = factor(ifelse(logistic.modelpayments.probability >
+                                                 coords(roc(default.payment.next.month ~ logistic.modelpayments.probability, data = test.results), 'best')[, 1], 1, 0
+                                              )),
+    
+    logistic.modeldemographics.prediction = factor(ifelse(logistic.modeldemographics.probability > 
+                                                     coords(roc(default.payment.next.month ~ logistic.modeldemographics.probability, data = test.results), 'best')[, 1], 1, 0
+                                                   ))
+  )  
 
-test$logit.model2.binary  <- as.factor(test$logit.model2.binary)
+# This will create confusion matrices for each logistic model. 
+confusionMatrix(test.results$logistic.model2.prediction, test.results$default.payment.next.month)
+confusionMatrix(test.results$logistic.modelpayments.prediction, test.results$default.payment.next.month)
+confusionMatrix(test.results$logistic.modeldemographics.prediction, test.results$default.payment.next.month)
 
-# create a confusion matrix
-confusionMatrix(test$default.payment.next.month, test$logit.model2.binary)
-
-#These models are practically the same and are not very predictive. 
-
-#Accuracy
-
-for (i in 1:nrow(test)) {
-  model1.correct[i] <- ifelse(test$logit.model1.binary[i] == test$default.payment.next.month[i], 1, 0)
-  model2.correct[i] <- ifelse(test$logit.model2.binary[i] == test$default.payment.next.month[i], 1, 0)
-}
-
-logit1.accuracy <- (sum(model1.correct)/length(model1.correct) * 100)
-logit2.accuracy <- (sum(model2.correct)/length(model1.correct) * 100)
-
+# These lines of code will extract accuracy. 
+confusionMatrix(test.results$logistic.model2.prediction, test.results$default.payment.next.month)$overall['Accuracy']
+confusionMatrix(test.results$logistic.modelpayments.prediction, test.results$default.payment.next.month)['Accuracy']
+confusionMatrix(test.results$logistic.modeldemographics.prediction, test.results$default.payment.next.month)['Accuracy']
 
 ```
 
@@ -746,7 +795,7 @@ confusion_matrix <- table(prediction, credit_test_category)
 
 confusion_matrix
 
-accuracy <- function(x){sum(diag(x)/(sum(rowSums(x)))) * 100}
+accuracy <- function(x){sum(diag(x)/(sum(rowSums(x))))}
 
 accuracy.knn <- accuracy(confusion_matrix)
 
@@ -807,7 +856,7 @@ plot(perf)
 
 auc.perf <- performance(pred, measure = 'auc')
 
-accuracy.rf <- as.numeric(auc.perf@y.values) * 100
+accuracy.rf <- as.numeric(auc.perf@y.values)
 
 print(auc.perf@y.values)
 
@@ -817,20 +866,16 @@ print(auc.perf@y.values)
 
 
 ## GBM Model
+
 Gradient boosting is a machine learning technique for regression and classification problems, which produces a prediction model in the form of an ensemble of weak prediction models, typically decision trees. It builds the model in an iterative fashion like other boosting methods do, and it generalizes them by allowing optimization of an arbitrary differentiate loss function. 
 
 https://koalaverse.github.io/machine-learning-in-R/gradient-boosting-machines.html
 
 ```{r GBM Prediction, echo=TRUE, message=FALSE, warning=FALSE}
-# Partition into training and test data
-set.seed(456)
-indexGBM <- createDataPartition(creditDf$default.payment.next.month, p = 0.7, list = FALSE)
-train_dataGBM  <- creditDf[indexGBM , ]
-test_dataGBM   <- creditDf[-indexGBM , ]
 
 # Train model with preprocessing & repeated cv
 model_gbm <- caret::train(default.payment.next.month ~ .,
-                          data = train_dataGBM,
+                          data = train,
                           method = "gbm",
                           preProcess = c("scale", "center"),
                           trControl = trainControl(method = "repeatedcv", 
@@ -841,16 +886,17 @@ model_gbm <- caret::train(default.payment.next.month ~ .,
 model_gbm
 
 # Test GBM Model against Test Data
-pred.int <- predict(model_gbm, test_dataGBM, interval = "prediction")#; pred.int
-gbm_data_frame <- cbind(test_dataGBM$default.payment.next.month, pred.int)#; gbm_data_frame
+pred.int <- predict(model_gbm, test, interval = "prediction")#; pred.int
+gbm_data_frame <- cbind(test$default.payment.next.month, pred.int)#; gbm_data_frame
 gbm_data_frame = as.data.frame(gbm_data_frame)#; gbm_data_frame
 
 
+gbm.correct <- rep(0, nrow(gbm_data_frame))
 for (i in 1:nrow(gbm_data_frame)) {
   gbm.correct[i] <- ifelse(gbm_data_frame$V1[i] == gbm_data_frame$pred.int[i], 1, 0)
 }
 
-accuracy.gbm <- sum(gbm.correct)/length(gbm.correct) * 100
+accuracy.gbm <- sum(gbm.correct)/length(gbm.correct)
 
 ```
 
@@ -860,8 +906,20 @@ accuracy.gbm <- sum(gbm.correct)/length(gbm.correct) * 100
 
 model.comparison <- data.frame(
   
-  Model = c('Logistic Model 1', 'Logistic Model 2', 'KNN Model', 'Random Forest', 'GMB Model'),
-  Accuracy = c(round(logit1.accuracy, 3), round(logit2.accuracy, 3), round(accuracy.knn, 3), round(accuracy.rf,3), round(accuracy.gbm, 3))
+  Model = c('Logistic Model 2', 
+            'Logistic Model Payments', 
+            'Logistic Model Demographics', 
+            'KNN Model', 
+            'Random Forest', 
+            'GMB Model'
+            ),
+  Accuracy = c(confusionMatrix(test.results$logistic.model2.prediction, test.results$default.payment.next.month)$overall['Accuracy'], 
+               confusionMatrix(test.results$logistic.modelpayments.prediction, test.results$default.payment.next.month)$overall['Accuracy'],
+               confusionMatrix(test.results$logistic.modeldemographics.prediction, test.results$default.payment.next.month)$overall['Accuracy'],
+               round(accuracy.knn, 3), 
+               round(accuracy.rf,3), 
+               round(accuracy.gbm, 3)
+               )
   
 )
 
@@ -869,10 +927,14 @@ model.comparison <- data.frame(
 model.comparison
 
 model.comparison %>%
+  arrange(Accuracy) %>%
   ggplot(aes(x = Model, y = Accuracy)) +
   geom_col() +
   ggtitle('Accuracy of the Models') +
-  theme_minimal()
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1)
+  )
 
 ```
 
