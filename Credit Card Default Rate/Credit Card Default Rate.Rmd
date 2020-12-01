@@ -730,44 +730,16 @@ logit2.accuracy <- (sum(model2.correct)/length(model1.correct) * 100)
 
 https://towardsdatascience.com/k-nearest-neighbors-algorithm-with-examples-in-r-simply-explained-knn-1f2c88da405c
 
-The data needed to be standardized and training as well as test sets need to be created. 
-
-```{r standardize, echo=TRUE}
-
-#standardize the continuous data 
-creditDf_Scaled <- data.frame(scale(continuous))
-
-creditDf_Scaled <- cbind(creditDf_Scaled, creditDf$default.payment.next.month)
-
-creditDf_Scaled <- creditDf_Scaled %>%
-  rename(
-      default.payment.next.month = `creditDf$default.payment.next.month`
-  )
-
-#creates a sample of 80% of the data
-sample_size <- floor(.8 * nrow(creditDf_Scaled))
-
-#
-set.seed(456)
-train_index <- sample(seq_len(nrow(creditDf_Scaled)), size = sample_size)
-
-#create a training a testing data set
-train <- creditDf_Scaled[train_index, ]
-test <- creditDf_Scaled[-train_index, ]
-
-#extract the target column
-credit_target_category <- train$default.payment.next.month
-credit_test_category <- test$default.payment.next.month
-
-
-```
-
-
 
 ```{r knn, echo=TRUE}
 
+#extract the target column
+credit_target_category <- train_scaled$default.payment.next.month
+credit_test_category <- test_scaled$default.payment.next.month
+
+
 #run knn
-prediction <- knn(train = train, test = test, cl = train$default.payment.next.month, k = 5)
+prediction <- knn(train = train_scaled, test = test_scaled, cl = train_scaled$default.payment.next.month, k = 5)
 
 #create a confusion matrix
 confusion_matrix <- table(prediction, credit_test_category)
@@ -788,28 +760,6 @@ This accuracy is insanely high, there must be target leakage.
 ## Random Forest 
 
 https://www.blopig.com/blog/2017/04/a-very-basic-introduction-to-random-forests-using-r/
-
-### Testing and Training Data Set
-
-```{r train test split rf, echo=TRUE}
-
-#creates a sample of 80% of the data
-sample_size <- floor(.8 * nrow(creditDf))
-
-#
-set.seed(678)
-train_index <- sample(seq_len(nrow(creditDf)), size = sample_size)
-
-#
-train <- creditDf[train_index, ]
-test <- creditDf[-train_index, ]
-
-# Drop the ID column from both the train and test set.
-train <- select(train, -c(id))
-test <- select(test, -c(id))
-
-
-```
 
 ### Train the Random Forest Model
 
