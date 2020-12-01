@@ -36,6 +36,7 @@ library(class) #for the knn() function
 library(randomForest) #for the random forest classifier
 library(gbm) #for GBM function
 library(gdata) #to rename columns 
+library(cvTools) #to perform corss validation
 select <- dplyr::select
 
 options(scipen=999) #effectively eliminates scientific notation
@@ -252,7 +253,7 @@ creditDf %>%
 
 Now, we examine the relationship between demographic variables and defaulting. 
 
-```{r visualize demographic, echo=TRUE, message=FALSE, warning=FALSE}
+```{r visualize demo, echo=TRUE, message=FALSE, warning=FALSE}
 
 # 1 = Female, 0 = Male
 sex.label <- c('Female', 'Male')
@@ -310,7 +311,7 @@ creditDf %>%
 ```
 
 
-```{r Bill Amt vs. Default, echo=TRUE}
+```{r Bill v default, echo=TRUE}
 
 creditDf %>%
   select( bill_amt6, bill_amt5, bill_amt4, bill_amt3, bill_amt2, bill_amt1, default.payment.next.month) %>%
@@ -331,7 +332,7 @@ creditDf %>%
 
 ```
 
-```{r Pay Amt vs. Default, echo=TRUE}
+```{r Pay v default, echo=TRUE}
 
 creditDf %>%
   select( pay_amt6, pay_amt5, pay_amt4, pay_amt3, pay_amt2, pay_amt1, default.payment.next.month) %>%
@@ -458,7 +459,7 @@ creditDf %>%
 
 The below chunk of code visualizes the demographic variables and their relation to defaulting. 
 
-```{r Default v Demo Info, echo=TRUE}
+```{r Default v Demo, echo=TRUE}
 
 #Limit Balance
 creditDf_LB <- creditDf %>% group_by(limit_bal, default.payment.next.month) %>% summarise(Counts = n())
@@ -649,7 +650,7 @@ summary(logit_model2E)
 
 The key metric from each logistic model are compared. 
 
-```{r comparing logit models, echo=TRUE}
+```{r compare logit, echo=TRUE}
 
 #create a graph comparing logit models by AIC
 
@@ -768,35 +769,37 @@ confusionMatrix(test.results$logistic.modeldemographics.prediction, test.results
 
 # These lines of code will extract accuracy. 
 confusionMatrix(test.results$logistic.model2.prediction, test.results$default.payment.next.month)$overall['Accuracy']
-confusionMatrix(test.results$logistic.modelpayments.prediction, test.results$default.payment.next.month)['Accuracy']
-confusionMatrix(test.results$logistic.modeldemographics.prediction, test.results$default.payment.next.month)['Accuracy']
+confusionMatrix(test.results$logistic.modelpayments.prediction, test.results$default.payment.next.month)$overall['Accuracy']
+confusionMatrix(test.results$logistic.modeldemographics.prediction, test.results$default.payment.next.month)$overall['Accuracy']
 
 ```
 
+The demographic variables of sex, education, and marriage are significant predictors of default. However, the model that solely relies on demographic variables to make predicts has a low accuracy. Demographic variables are not helpful in determining who might default. While it is illegal to use demographics when deciding whether or not too issue a card, there is no financial incentive in doing so. 
+
+Bill Amt 1, each of the Pay Amt variables, and Pay_0 are all statistically significant predictors of default. The model that relies solely on payment variables has a decent accuracy. 
 
 
 ## k-Nearest Neighbors
+
+k-Nearest Neighbors determines the classification of an observation based on the k closest neighbors. Closeness is defined using Euclidean distance. Each data point resides in space and the distance between each point is measured using the distance formula. In the example, we are using k equals 5. When a new point is presented, the class of the five closest neighbors is examined. Their class is used to determine the new points class.  
 
 https://towardsdatascience.com/k-nearest-neighbors-algorithm-with-examples-in-r-simply-explained-knn-1f2c88da405c
 
 
 ```{r knn, echo=TRUE}
 
-#extract the target column
-credit_target_category <- train_scaled$default.payment.next.month
-credit_test_category <- test_scaled$default.payment.next.month
-
-
-#run knn
+# The KNN neighbors model is trained on the scaled data set. 
 prediction <- knn(train = train_scaled, test = test_scaled, cl = train_scaled$default.payment.next.month, k = 5)
 
-#create a confusion matrix
-confusion_matrix <- table(prediction, credit_test_category)
+# A confusion matrix is created with predictions. There is no need to create ROC curves, because the outcome of the KNN model is binary, not a probability. 
+confusion_matrix <- table(prediction, test_scaled$default.payment.next.month)
 
 confusion_matrix
 
+# A function for calculating accuracy is created. 
 accuracy <- function(x){sum(diag(x)/(sum(rowSums(x))))}
 
+# The accurancy is stored in a variable for later use. 
 accuracy.knn <- accuracy(confusion_matrix)
 
 accuracy.knn 
@@ -938,8 +941,5 @@ model.comparison %>%
 
 ```
 
-## Cross Validation
 
 ## Conclusion
-
-# Sources
