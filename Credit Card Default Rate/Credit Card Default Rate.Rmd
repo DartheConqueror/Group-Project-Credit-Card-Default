@@ -35,7 +35,7 @@ library(ROCR) #an alternate ROC curve package
 library(class) #for the knn() function
 library(randomForest) #for the random forest classifer
 library(gbm) #for GBM function
-
+library(gdata) #to rename columns 
 select <- dplyr::select
 
 options(scipen=999) #effectively eliminates scientific notation
@@ -196,21 +196,45 @@ summary(creditDf)
 
 ```{r Udeful Subsets, echo=TRUE}
 
-#useful subsets:
+# Useful Subsets
 
-#all categorical variables
+# This creates a data frame of all categorical variables.
 categorical <- select(creditDf, c(sex, education, marriage, default.payment.next.month, pay_0, pay_2, pay_3, pay_4, pay_5, pay_6))
 
-#all continuous variables
+# This creates a data drame of all continuous variables.
 continuous <- select(creditDf, -c(sex, education, marriage, default.payment.next.month, pay_0, pay_2, pay_3, pay_4, pay_5, pay_6))
 
-#all dummy variables
+# This dummy codes all categorical variables. 
 dummy <- select(creditDf, c(education, marriage, pay_0, pay_2, pay_3, pay_4, pay_5, pay_6))
 
-#creates dummy variables for all categorical variables with more than two levels
 creditDf_Dummy <- dummy_cols(creditDf, select_columns = colnames(dummy))
 
+# The following lines of codes create a data frame with scaled values for the continuous variables. 
+creditDf_Scaled <- creditDf %>%
+  select(-c(sex, education, marriage, default.payment.next.month, pay_0, pay_2, pay_3, pay_4, pay_5, pay_6)) %>%
+  scale() %>%
+  data.frame()
 
+creditDf_Scaled <- cbind(creditDf_Scaled, categorical)
+
+creditDf_Scaled <- rename.vars(creditDf_Scaled, from = dput(names(continuous)), to = paste0('scaled.', dput(names(continuous))))
+
+# The following creates testing and training data sets.
+
+# Creates a sample of 80% of the data
+sample_size <- floor(.8 * nrow(creditDf))
+
+#
+set.seed(123)
+train_index <- sample(seq_len(nrow(creditDf)), size = sample_size)
+
+# This is a training and testing set with no scaled data. 
+train <- creditDf[train_index, ]
+test <- creditDf[-train_index, ]
+
+# This is a training and testing set with scaled data. 
+train_scaled <- creditDf_Scaled[train_index, ]
+test_scaled <- creditDf_Scaled[-train_index, ]
 
 
 ```
@@ -538,55 +562,6 @@ agedist = agedist + guides(fill=guide_legend(title ='Default Payment: 0 = No Def
 
 ## Logistic Regression
 
-### Training and Test Data
-
-The data is split into a training and test set. 
-
-```{r train test split logit, echo=TRUE}
-
-#creates a sample of 80% of the data
-sample_size <- floor(.8 * nrow(creditDf))
-
-#
-set.seed(123)
-train_index <- sample(seq_len(nrow(creditDf)), size = sample_size)
-
-#
-train <- creditDf_Dummy[train_index, ]
-test <- creditDf_Dummy[-train_index, ]
-
-# This will create new training and testing data sets. However, the continupus variables will be scaled. 
-
-train_scaled <- train %>%
-  select(c(limit_bal, age, bill_amt1, bill_amt2, bill_amt3, bill_amt4, bill_amt5, bill_amt6, 
-           pay_amt1, pay_amt2, pay_amt3, pay_amt4, pay_amt5, pay_amt6,
-           bill_avg, pay_avg, avg_credit_usage)) %>%
-  scale() %>%
-  data.frame()
-
-train_scaled <- cbind(train$default.payment.next.month, train_scaled)
-
-train_scaled <- train_scaled %>%
-  rename(
-      default.payment.next.month = `train$default.payment.next.month`
-  )
-
-test_scaled <- test  %>%
-  select(c(limit_bal, age, bill_amt1, bill_amt2, bill_amt3, bill_amt4, bill_amt5, bill_amt6, 
-           pay_amt1, pay_amt2, pay_amt3, pay_amt4, pay_amt5, pay_amt6,
-           bill_avg, pay_avg, avg_credit_usage)) %>%
-  scale() %>%
-  data.frame()
-
-test_scaled <- cbind(test$default.payment.next.month, test_scaled)
-
-test_scaled <- test_scaled %>%
-  rename(
-      default.payment.next.month = `test$default.payment.next.month`
-  )
-
-```
-
 ### Computing Stepwise Logistic Regression
 
 
@@ -653,7 +628,7 @@ The significant variables from above are used to train two models.
 ```{r Stepwise Logistic}
 
 # Model 1
-logit_model1 <- glm(default.payment.next.month ~ sex + education_1 + education_2 + education_3 +
+logit_model1 <- glm(default.payment.next.month ~ sex + education +
                       bill_amt1 + 
                       pay_amt1 + pay_amt2 + pay_amt3 + pay_amt4 + pay_amt5 + pay_amt6 +
                       limit_bal +  avg_credit_usage,
@@ -663,7 +638,7 @@ summary(logit_model1)
 
 
 # Model 2
-logit_model2 <- glm(default.payment.next.month ~ sex + education_1 + education_2 + education_3 +
+logit_model2 <- glm(default.payment.next.month ~ sex + education +
                       pay_amt1 + pay_amt2 + pay_amt3 + pay_amt4 + pay_amt5 +
                       limit_bal +  avg_credit_usage,
                     data = train, family = 'binomial')
@@ -681,8 +656,8 @@ summary(logit_model3)
 
 # Model 3B
 
-logit_model3B <- glm(default.payment.next.month ~ limit_bal + age + 
-                    pay_amt1 + avg_credit_usage,
+logit_model3B <- glm(default.payment.next.month ~ scaled.limit_bal + scaled.age + 
+                    scaled.pay_amt1 + scaled.avg_credit_usage,
                     data = train_scaled, family = 'binomial')
 
 summary(logit_model3B)
