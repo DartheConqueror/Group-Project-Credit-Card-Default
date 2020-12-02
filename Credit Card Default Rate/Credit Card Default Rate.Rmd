@@ -36,7 +36,6 @@ library(class) #for the knn() function
 library(randomForest) #for the random forest classifier
 library(gbm) #for GBM function
 library(gdata) #to rename columns 
-library(cvTools) #to perform corss validation
 select <- dplyr::select
 
 options(scipen=999) #effectively eliminates scientific notation
@@ -195,7 +194,7 @@ summary(creditDf)
 # This creates a data frame of all categorical variables.
 categorical <- select(creditDf, c(sex, education, marriage, default.payment.next.month, pay_0, pay_2, pay_3, pay_4, pay_5, pay_6))
 
-# This creates a data drame of all continuous variables.
+# This creates a data frame of all continuous variables.
 continuous <- select(creditDf, -c(sex, education, marriage, default.payment.next.month, pay_0, pay_2, pay_3, pay_4, pay_5, pay_6))
 
 # This dummy codes all categorical variables. 
@@ -233,8 +232,6 @@ test_scaled <- creditDf_Scaled[-train_index, ]
 
 ```
 
-## Descriptive Statistics
-
 # Visualize
 
 To begin, the below is a visualization of the ratio of default to no defaults.
@@ -246,7 +243,7 @@ creditDf %>%
   geom_bar() +
   ylab('Count') +
   xlab('Default (1 = yes)') +
-  ggtitle('The Number of Defaults in the Dataset') +
+  ggtitle('Figure1: The Number of Defaults in the Dataset') +
   theme_minimal()
 
 ```
@@ -277,7 +274,7 @@ creditDf %>%
   xlab('Education') +
   ylab('Proportion of Defaults') +
   labs(fill = 'Default 1 = yes | 0 = no') +
-  ggtitle('The Proportion of Default by Education, Sex, and Marriage') +
+  ggtitle('Figure 2: The Proportion of Default by Education, Sex, and Marriage') +
   theme_minimal() +
   theme(
     legend.position = 'bottom',
@@ -301,7 +298,7 @@ creditDf %>%
              ) +
   xlab('Age') +
   ylab('Proportion') +
-  ggtitle('The Proportion of Default by Age and Sex') +
+  ggtitle('Figure 3: The Proportion of Default by Age and Sex') +
   labs(fill = 'Default 1 = yes | 0 = no') +
   theme_minimal() +
   theme(
@@ -322,6 +319,7 @@ creditDf %>%
   xlim(0, 75000) +
   ylab('Density') +
   xlab('Amount of Bill Statement ($)') +
+  ggtitle('Figure 4: Density Plots of Bill Amounts') +
   labs(fill = 'Default 1 = yes | 0 = no') +
   theme_minimal() +
   theme(
@@ -344,6 +342,7 @@ creditDf %>%
   ylab('Density') +
   xlab('Amount of Previous Payment ($)') +
   labs(fill = 'Default 1 = yes | 0 = no') +
+  ggtitle('Figure 5: Density Plits of Pay Amounts') +
   theme_minimal() +
   theme(
     legend.position = 'bottom',
@@ -363,7 +362,7 @@ creditDf %>%
   ggplot(aes(y = value,  group = default.payment.next.month, x = default.payment.next.month)) +
   geom_boxplot() +
   facet_wrap(~iv, scales = 'free') +
-  ggtitle('Histograms of the Variables') +
+  ggtitle('Figure 6: Boxplots of the Variables') +
   theme_minimal() +
   theme(
     axis.text.y = element_blank(),
@@ -386,7 +385,7 @@ categorical %>%
   facet_wrap(~var, scales = 'free') +
   xlab('Variable') +
   ylab('Count') +
-  ggtitle('Histograms of All Categorical Variables') +
+  ggtitle('Figure 7: Histograms of All Categorical Variables') +
   theme_minimal() +
   theme(
     #axis.text.x = element_text(angle = 45, hjust = 1),
@@ -402,7 +401,7 @@ continuous %>%
   geom_density() +
   facet_wrap(~var, scales = 'free') +
   ylab('Density') +
-  ggtitle('Density Plots of All Continuous Variables') +
+  ggtitle('Figure 8: Density Plots of All Continuous Variables') +
   theme_minimal() +
   theme(
     #axis.text.x = element_text(angle = 45, hjust = 1),
@@ -424,6 +423,7 @@ The below code chunk visualizes two variables and the groups the data by whether
 creditDf %>%
   ggplot(aes(x = bill_avg, y = pay_avg, color = default.payment.next.month)) +
   geom_point() +
+  ggtitle('Figure 9') +
   theme_minimal() +
   theme(
     legend.position = 'bottom'
@@ -433,6 +433,7 @@ creditDf %>%
 creditDf %>%
   ggplot(aes(x = age, y = pay_avg, color = default.payment.next.month)) +
   geom_point() +
+  ggtitle('Figure 10') +
     theme_minimal() +
   theme(
     legend.position = 'bottom'
@@ -441,6 +442,7 @@ creditDf %>%
 creditDf %>%
   ggplot(aes(x = age, y = bill_avg, color = default.payment.next.month)) +
   geom_point() +
+  ggtitle('Figure 11') +
     theme_minimal() +
   theme(
     legend.position = 'bottom'
@@ -449,6 +451,7 @@ creditDf %>%
 creditDf %>%
   ggplot(aes(x = avg_credit_usage, fill = default.payment.next.month)) +
   geom_bar() +
+  ggtitle('Figure 12') +
     theme_minimal() +
   theme(
     legend.position = 'bottom'
@@ -470,7 +473,7 @@ lbdist = ggplot(creditDf_LB, aes(x=factor(LIMIT_BAL), y=Counts, fill=factor(defa
       xlab('Limit Balanace')+
       ylab('Total')+
       theme_minimal()+
-      ggtitle("Limit Balance Distribution") +
+      ggtitle("Figure 13: Limit Balance Distribution") +
       theme(
         axis.text.x = element_text(angle = 45, hjust = 1),
         legend.position = 'bottom'
@@ -487,7 +490,7 @@ genderdist = ggplot(creditDf_Sex, aes(x=factor(SEX), y=Count, fill=factor(defaul
       xlab('Gender: 0 = Male | 1 = Female')+
       ylab('Total')+
       theme_minimal()+
-      ggtitle("Gender Distribution") +
+      ggtitle("Figure 14: Gender Distribution") +
       theme(
         legend.position = 'bottom'
       )
@@ -503,7 +506,7 @@ edudist = ggplot(creditDf_Edu, aes(x=factor(EDU), y=Count, fill=factor(default))
       xlab('Education: 1 = Grad School, 2 = Under Grad, 3 = High School, 4 = Others')+
       ylab('Total')+
       theme_minimal()+
-      ggtitle("Educatiton Distribution")
+      ggtitle("Figure 15: Educatiton Distribution")
 edudist = edudist + guides(fill=guide_legend(title ='Default Payment: 0 = No Default | 1 = Default' )) ; edudist
 ##The Customers who have competed undergrad have a higher default rate.
 
@@ -516,12 +519,12 @@ mardist = ggplot(creditDf_Mar, aes(x=factor(MAR), y=Count, fill=factor(default))
       xlab('Martial Status: 1 = Married, 2 = Single, 3 = Others')+
       ylab('Total')+
       theme_minimal()+
-      ggtitle("Marriage Distribution") +
+      ggtitle("Figure 16: Marriage Distribution") +
       theme(
         legend.position = 'bottom'
       )
 mardist = mardist + guides(fill=guide_legend(title ='Default Payment: 0 = No Default | 1 = Default' )) ; mardist
-##Married and Single Customers have a apprx the same default rate.
+##Married and Single Customers have a approx the same default rate.
 
 #Age
 creditDf_Age <- creditDf %>% group_by(age, default.payment.next.month) %>% summarise(Count = n())
@@ -532,7 +535,7 @@ agedist = ggplot(creditDf_Age, aes(x=age, y=Count, fill=factor(default))) +
       xlab('Age')+
       ylab('Total')+
       theme_minimal()+
-      ggtitle("Age Distribution") +
+      ggtitle("Figure 17: Age Distribution") +
       theme(
         legend.position = 'bottom'
       )
@@ -654,6 +657,7 @@ The key metric from each logistic model are compared.
 
 #create a graph comparing logit models by AIC
 
+# TABLE 1
 logit.comparison <- data.frame(
   
   'Model' = c('Logistic Model 1', 'Logistic Model 1B', 'Logistic Model 2', 'Logistic Model 2B', 'Logistic Model 2C', 'Logistic Model 2D',
@@ -687,7 +691,7 @@ logit.comparison %>%
 logit.comparison %>%
   ggplot(aes(x = Model, y = AIC)) +
   geom_col() +
-  ggtitle('AIC for Each Logistic Model') +
+  ggtitle('Figure 18: AIC for Each Logistic Model') +
   theme_minimal() +
   theme(
     axis.text.x = element_text(angle = 45, hjust = 1)
@@ -722,7 +726,7 @@ plot(
   prediction(test.results$logistic.model2.probability, test.results$default.payment.next.month),
   'tpr',
   'fpr'
-  ), colorsize = TRUE
+  ), colorsize = TRUE, main = 'Figure 20: ROC Curve of Logistic Models'
   )
 # This adds the line for the payments model. 
 plot(
@@ -730,7 +734,7 @@ plot(
   prediction(test.results$logistic.modelpayments.probability, test.results$default.payment.next.month),
   'tpr',
   'fpr'
-  ), colorsize = TRUE, add = TRUE
+  ), colorsize = TRUE, add = TRUE, col = 2
   )
 # This adds a line for the demographics model.The demographics model is as good as guessing. 
 plot(
@@ -738,7 +742,7 @@ plot(
   prediction(test.results$logistic.modeldemographics.probability, test.results$default.payment.next.month),
   'tpr',
   'fpr'
-  ), colorsize = TRUE, add = TRUE
+  ), colorsize = TRUE, add = TRUE, col = 3
   )
 
 # This line will determine the best cut-off values. 
@@ -799,7 +803,7 @@ confusion_matrix
 # A function for calculating accuracy is created. 
 accuracy <- function(x){sum(diag(x)/(sum(rowSums(x))))}
 
-# The accurancy is stored in a variable for later use. 
+# The accuracy is stored in a variable for later use. 
 accuracy.knn <- accuracy(confusion_matrix)
 
 accuracy.knn 
@@ -822,6 +826,7 @@ rf_classifer = randomForest(default.payment.next.month ~ ., data = train, ntree 
 
 rf_classifer
 
+# FIGURE 21
 varImpPlot(rf_classifer)
 
 # Model 2
@@ -831,6 +836,7 @@ rf_classifer_2 = randomForest(default.payment.next.month ~ pay_0 + pay_2 + pay_3
                                 limit_bal
                                 , data = train, ntree = 100, mtry = 2, importance = TRUE)
 
+# FIGURE 22
 rf_classifer_2
 
 varImpPlot(rf_classifer_2)
@@ -855,7 +861,7 @@ pred <- prediction(rf_prediction_prob[, 1], true_value)
 
 perf <- performance(pred, 'tpr', 'fpr')
 
-plot(perf)
+plot(perf, main = 'Figure 22: ROC Curve of Random Forest Classifer')
 
 auc.perf <- performance(pred, measure = 'auc')
 
@@ -903,10 +909,11 @@ accuracy.gbm <- sum(gbm.correct)/length(gbm.correct)
 
 ```
 
-## Model Comparison (Accuracy)
+## Model Comparison
 
-```{r accuracy comparison, echo=TRUE}
+```{r accuracy, echo=TRUE}
 
+# TABLE 2
 model.comparison <- data.frame(
   
   Model = c('Logistic Model 2', 
@@ -933,7 +940,7 @@ model.comparison %>%
   arrange(Accuracy) %>%
   ggplot(aes(x = Model, y = Accuracy)) +
   geom_col() +
-  ggtitle('Accuracy of the Models') +
+  ggtitle('Figure 23: Accuracy of the Models') +
   theme_minimal() +
   theme(
     axis.text.x = element_text(angle = 45, hjust = 1)
@@ -942,4 +949,20 @@ model.comparison %>%
 ```
 
 
-## Conclusion
+# Conclusion
+
+In this section we reviewed the effectiveness of utilizing demographic variables (collected prior to credit card issument) to determine if they are a viable method for predicting default payment among our clients. In short - they are not. While the demographic variables  are significant predictors of default. However, our model that solely relies on demographic variables to make predicts has a low accuracy. Meaning, that our demographic variables as a base are not helpful in determining who might default. With this in mind, we’ll pivot here to focus on all known variables to build our model (either existing, engineered, or inputted in to our machine learning systems) 
+
+We inputted our data into three (3) machine learning classification models:
+* K-Nearest Neighbors
+* Random Forest
+* Gradient Boosting
+
+In terms of accuracy, the K-Nearest Neighbors offer the highest likelihood of predicting default payment by utilizing all of our continuous variables. To note, the only continuous Demographic variable included would be age.  
+
+Recommendations:
+* When issuing credits, ignore demographic data as it is  poor method for predicting default payment 
+* Our strongest predictors of default tend to fall within the payment category, specifically ‘Pay_0’ and ‘Pay_Avg.’
+* With this in mind, we would recommend that your Bank should focus its efforts on early payment reminders,
+* In addition to early reminders, we would also push for regularly on-time payment incentives - ranging from local, gift cards to discounted services. 
+* Implement optional spending controls after Pay_6 for customers that want to manage their debt and climb back to Pay_0 status. 
